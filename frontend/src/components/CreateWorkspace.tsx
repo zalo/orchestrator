@@ -209,7 +209,7 @@ export default function CreateWorkspace({ isOpen, onClose, onCreated }: CreateWo
         isOpen={showFolderBrowser}
         onClose={() => setShowFolderBrowser(false)}
         onSelect={handleFolderSelect}
-        initialPath={workingDirectory || '/home'}
+        initialPath={workingDirectory || '/home/selstad/Desktop'}
       />
     </>
   );

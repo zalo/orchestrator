@@ -9,7 +9,7 @@ interface FolderBrowserProps {
 }
 
 export default function FolderBrowser({ isOpen, onClose, onSelect, initialPath }: FolderBrowserProps) {
-  const [currentPath, setCurrentPath] = useState(initialPath || '/home');
+  const [currentPath, setCurrentPath] = useState(initialPath || '/home/selstad/Desktop');
   const [entries, setEntries] = useState<FilesystemEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

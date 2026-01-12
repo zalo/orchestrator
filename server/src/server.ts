@@ -1478,36 +1478,51 @@ Begin working on your assigned task immediately. Execute, don't announce.`;
 
 async function spawnMayorForWorkspace(workspace: Workspace): Promise<Agent> {
   const now = new Date().toISOString();
-  const mayorId = uuidv4();
-
-  // Create Mayor agent
-  const mayor: Agent = {
-    id: mayorId,
-    name: 'mayor',
-    role: 'mayor',
-    model: 'opus',
-    status: 'starting',
-    currentTask: null,
-    worktree: null,
-    worktreeBranch: null,
-    ownedPaths: [],  // Mayor doesn't own specific files - coordinator role
-    tmuxSession: getTmuxSessionName(workspace, 'mayor'),
-    pid: null,
-    lastSeen: now,
-    created: now,
-    workspaceId: workspace.id,
-    // Mayor is the root of the hierarchy
-    parentAgentId: null,
-    canSpawnAgents: true,
-    spawnedAgentIds: []
-  };
-
   const agents = getAgents(workspace.id);
-  agents.push(mayor);
+
+  // Check if there's an existing mayor we can reuse (from a previous stop)
+  let mayor = agents.find(a => a.role === 'mayor');
+  let isRestart = false;
+
+  if (mayor) {
+    // Reuse existing mayor - update its status
+    isRestart = true;
+    mayor.status = 'starting';
+    mayor.lastSeen = now;
+    mayor.tmuxSession = getTmuxSessionName(workspace, 'mayor');
+
+    // Clean up old offline sub-agents on restart to prevent accumulation
+    const activeAgents = agents.filter(a => a.role === 'mayor' || a.status !== 'offline');
+    workspaceAgents.set(workspace.id, activeAgents);
+  } else {
+    // Create new Mayor agent
+    const mayorId = uuidv4();
+    mayor = {
+      id: mayorId,
+      name: 'mayor',
+      role: 'mayor',
+      model: 'opus',
+      status: 'starting',
+      currentTask: null,
+      worktree: null,
+      worktreeBranch: null,
+      ownedPaths: [],  // Mayor doesn't own specific files - coordinator role
+      tmuxSession: getTmuxSessionName(workspace, 'mayor'),
+      pid: null,
+      lastSeen: now,
+      created: now,
+      workspaceId: workspace.id,
+      // Mayor is the root of the hierarchy
+      parentAgentId: null,
+      canSpawnAgents: true,
+      spawnedAgentIds: []
+    };
+    agents.push(mayor);
+  }
   saveAgents(workspace.id);
 
   // Generate prompt and spawn
-  const prompt = generateMayorPrompt(workspace, mayorId);
+  const prompt = generateMayorPrompt(workspace, mayor.id);
   const success = await spawnClaudeAgent(mayor, workspace, prompt);
 
   if (success) {
@@ -1517,7 +1532,7 @@ async function spawnMayorForWorkspace(workspace: Workspace): Promise<Agent> {
   }
   saveAgents(workspace.id);
 
-  broadcast('agent:created', mayor, workspace.id);
+  broadcast(isRestart ? 'agent:restarted' : 'agent:created', mayor, workspace.id);
 
   return mayor;
 }
@@ -1588,7 +1603,7 @@ async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt:
       } catch (e) {
         console.error('Failed to send initial message:', e);
       }
-    }, 5000);
+    }, 2000); // 2 seconds is enough for Claude to initialize
 
     return true;
   } catch (e) {
