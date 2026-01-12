@@ -1,0 +1,22 @@
+total 252
+drwxr-xr-x 2 selstad selstad  4096 Jan 12 13:52 .
+drwxr-xr-x 3 selstad selstad  4096 Jan 12 13:52 ..
+-rw-r--r-- 1 selstad selstad   858 Jan 12 13:52 agent-patrol-2026-01-12T21-41-17-336Z.log
+-rw-r--r-- 1 selstad selstad 10959 Jan 12 13:52 agent-patrol-2026-01-12T21-52-20-424Z.log
+-rw-r--r-- 1 selstad selstad 19479 Jan 12 13:52 api-reference-specialist-2026-01-12T21-52-20-365Z.log
+-rw-r--r-- 1 selstad selstad   861 Jan 12 13:52 code-reviewer-2026-01-12T21-41-18-025Z.log
+-rw-r--r-- 1 selstad selstad 25013 Jan 12 13:52 code-reviewer-2026-01-12T21-52-20-445Z.log
+-rw-r--r-- 1 selstad selstad  1831 Jan 12 13:52 docs-specialist-2026-01-12T21-45-38-472Z.log
+-rw-r--r-- 1 selstad selstad  4906 Jan 12 13:52 docs-specialist-2-2026-01-12T21-52-20-386Z.log
+-rw-r--r-- 1 selstad selstad 21790 Jan 12 13:52 frontend-witness-2026-01-12T21-45-37-661Z.log
+-rw-r--r-- 1 selstad selstad 16237 Jan 12 13:52 homepage-specialist-2026-01-12T21-52-20-346Z.log
+-rw-r--r-- 1 selstad selstad     0 Jan 12 13:52 manifest.txt
+-rw-r--r-- 1 selstad selstad 31225 Jan 12 13:52 mayor-2026-01-12T21-52-20-304Z.log
+-rw-r--r-- 1 selstad selstad   951 Jan 12 13:52 merge-processor-2026-01-12T21-41-18-733Z.log
+-rw-r--r-- 1 selstad selstad 34868 Jan 12 13:52 merge-processor-2026-01-12T21-52-20-465Z.log
+-rw-r--r-- 1 selstad selstad  9135 Jan 12 13:52 project-scout-2026-01-12T21-52-20-323Z.log
+-rw-r--r-- 1 selstad selstad  1820 Jan 12 13:52 search-specialist-2026-01-12T21-45-39-203Z.log
+-rw-r--r-- 1 selstad selstad 11429 Jan 12 13:52 search-specialist-2-2026-01-12T21-52-20-403Z.log
+-rw-r--r-- 1 selstad selstad   867 Jan 12 13:52 styling-witness-2026-01-12T21-41-16-682Z.log
+-rw-r--r-- 1 selstad selstad  1831 Jan 12 13:52 styling-witness-2026-01-12T21-43-58-872Z.log
+-rw-r--r-- 1 selstad selstad 14965 Jan 12 13:52 theme-specialist-2026-01-12T21-52-20-486Z.log

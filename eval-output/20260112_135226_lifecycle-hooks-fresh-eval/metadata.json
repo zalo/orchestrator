@@ -1,0 +1,7 @@
+{
+  "workspaceId": "29305386-5cc0-49f9-9561-2d16ce8eaea5",
+  "runLabel": "lifecycle-hooks-fresh-eval",
+  "collectedAt": "2026-01-12T13:52:26-08:00",
+  "apiBase": "http://localhost:3001",
+  "outputDir": "./eval-output/20260112_135226_lifecycle-hooks-fresh-eval"
+}
