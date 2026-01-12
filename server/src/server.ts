@@ -63,11 +63,30 @@ interface Agent {
   status: 'idle' | 'working' | 'blocked' | 'offline' | 'starting';
   currentTask: string | null;
   worktree: string | null;
+  worktreeBranch: string | null;
+  ownedPaths: string[];  // File/directory patterns this agent owns (e.g., "src/auth/**", "src/components/Button.tsx")
   tmuxSession: string | null;
   pid: number | null;
   lastSeen: string;
   created: string;
   workspaceId?: string;
+}
+
+interface MergeRequest {
+  id: string;
+  agentId: string;
+  agentName: string;
+  branch: string;
+  targetBranch: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'in_queue' | 'merging' | 'merged' | 'failed' | 'conflict';
+  position: number;  // Position in merge queue (0 = next to merge)
+  created: string;
+  updated: string;
+  mergedAt: string | null;
+  conflictsWith: string[];  // Other MR ids that conflict
+  filesChanged: string[];
 }
 
 interface ProgressEntry {
@@ -163,6 +182,7 @@ const workspaceBeads = new Map<string, Bead[]>();
 const workspaceAgents = new Map<string, Agent[]>();
 const workspaceProgress = new Map<string, ProgressEntry[]>();
 const workspaceMessages = new Map<string, Message[]>();
+const workspaceMergeQueue = new Map<string, MergeRequest[]>();
 
 function getBeads(workspaceId: string): Bead[] {
   if (!workspaceBeads.has(workspaceId)) {
@@ -212,11 +232,24 @@ function saveMessages(workspaceId: string) {
   saveWorkspaceData(workspaceId, 'messages.json', messages);
 }
 
+function getMergeQueue(workspaceId: string): MergeRequest[] {
+  if (!workspaceMergeQueue.has(workspaceId)) {
+    workspaceMergeQueue.set(workspaceId, loadWorkspaceData(workspaceId, 'merge-queue.json', []));
+  }
+  return workspaceMergeQueue.get(workspaceId)!;
+}
+
+function saveMergeQueue(workspaceId: string) {
+  const queue = workspaceMergeQueue.get(workspaceId) || [];
+  saveWorkspaceData(workspaceId, 'merge-queue.json', queue);
+}
+
 function clearWorkspaceCache(workspaceId: string) {
   workspaceBeads.delete(workspaceId);
   workspaceAgents.delete(workspaceId);
   workspaceProgress.delete(workspaceId);
   workspaceMessages.delete(workspaceId);
+  workspaceMergeQueue.delete(workspaceId);
 }
 
 function deleteWorkspaceData(workspaceId: string) {
@@ -336,6 +369,179 @@ function saveTmuxSessionLog(sessionName: string, agentName: string, workspaceId?
     console.error(`Failed to save log for ${agentName}:`, e);
     return null;
   }
+}
+
+// ============ GIT WORKTREE HELPERS ============
+
+function isGitRepo(dir: string): boolean {
+  try {
+    execSync(`git -C "${dir}" rev-parse --is-inside-work-tree 2>/dev/null`, { encoding: 'utf-8' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getWorktreesDir(workspace: Workspace): string {
+  // Store worktrees in a sibling directory to avoid polluting the main repo
+  const parentDir = path.dirname(workspace.workingDirectory);
+  const workspaceName = path.basename(workspace.workingDirectory);
+  return path.join(parentDir, `.${workspaceName}-worktrees`);
+}
+
+function createWorktree(workspace: Workspace, agentName: string, branchName: string): { path: string; branch: string } | null {
+  if (!isGitRepo(workspace.workingDirectory)) {
+    console.log(`Workspace ${workspace.name} is not a git repo, skipping worktree creation`);
+    return null;
+  }
+
+  const worktreesDir = getWorktreesDir(workspace);
+  if (!fs.existsSync(worktreesDir)) {
+    fs.mkdirSync(worktreesDir, { recursive: true });
+  }
+
+  const worktreePath = path.join(worktreesDir, agentName);
+  const fullBranchName = `agent/${agentName}/${branchName}`;
+
+  try {
+    // Check if worktree already exists
+    if (fs.existsSync(worktreePath)) {
+      console.log(`Worktree already exists at ${worktreePath}, removing it first`);
+      removeWorktree(workspace, worktreePath);
+    }
+
+    // Get current branch/commit to branch from
+    const currentRef = execSync(`git -C "${workspace.workingDirectory}" rev-parse HEAD`, { encoding: 'utf-8' }).trim();
+
+    // Create a new branch and worktree
+    execSync(`git -C "${workspace.workingDirectory}" worktree add -b "${fullBranchName}" "${worktreePath}" ${currentRef}`, { encoding: 'utf-8' });
+
+    console.log(`Created worktree for ${agentName} at ${worktreePath} on branch ${fullBranchName}`);
+    return { path: worktreePath, branch: fullBranchName };
+  } catch (e) {
+    console.error(`Failed to create worktree for ${agentName}:`, e);
+    return null;
+  }
+}
+
+function removeWorktree(workspace: Workspace, worktreePath: string): boolean {
+  if (!isGitRepo(workspace.workingDirectory)) {
+    return false;
+  }
+
+  try {
+    // Force remove the worktree
+    execSync(`git -C "${workspace.workingDirectory}" worktree remove --force "${worktreePath}" 2>/dev/null`, { encoding: 'utf-8' });
+    console.log(`Removed worktree at ${worktreePath}`);
+    return true;
+  } catch (e) {
+    // Try manual cleanup if git worktree remove fails
+    try {
+      if (fs.existsSync(worktreePath)) {
+        fs.rmSync(worktreePath, { recursive: true, force: true });
+      }
+      // Prune worktree references
+      execSync(`git -C "${workspace.workingDirectory}" worktree prune`, { encoding: 'utf-8' });
+      return true;
+    } catch {
+      console.error(`Failed to remove worktree at ${worktreePath}:`, e);
+      return false;
+    }
+  }
+}
+
+function listWorktrees(workspace: Workspace): Array<{ path: string; branch: string; commit: string }> {
+  if (!isGitRepo(workspace.workingDirectory)) {
+    return [];
+  }
+
+  try {
+    const output = execSync(`git -C "${workspace.workingDirectory}" worktree list --porcelain`, { encoding: 'utf-8' });
+    const worktrees: Array<{ path: string; branch: string; commit: string }> = [];
+
+    const entries = output.split('\n\n').filter(e => e.trim());
+    for (const entry of entries) {
+      const lines = entry.split('\n');
+      let wPath = '';
+      let commit = '';
+      let branch = '';
+
+      for (const line of lines) {
+        if (line.startsWith('worktree ')) wPath = line.substring(9);
+        if (line.startsWith('HEAD ')) commit = line.substring(5);
+        if (line.startsWith('branch ')) branch = line.substring(7).replace('refs/heads/', '');
+      }
+
+      if (wPath && wPath !== workspace.workingDirectory) {
+        worktrees.push({ path: wPath, branch, commit });
+      }
+    }
+
+    return worktrees;
+  } catch {
+    return [];
+  }
+}
+
+// ============ FILE OWNERSHIP HELPERS ============
+
+function checkPathOverlap(paths1: string[], paths2: string[]): string[] {
+  const overlaps: string[] = [];
+
+  for (const p1 of paths1) {
+    for (const p2 of paths2) {
+      // Simple overlap check - exact match or one contains the other
+      if (p1 === p2) {
+        overlaps.push(p1);
+      } else if (p1.endsWith('/**') && p2.startsWith(p1.slice(0, -3))) {
+        overlaps.push(p2);
+      } else if (p2.endsWith('/**') && p1.startsWith(p2.slice(0, -3))) {
+        overlaps.push(p1);
+      } else if (p1.includes('*') || p2.includes('*')) {
+        // For glob patterns, do a basic prefix check
+        const p1Base = p1.split('*')[0];
+        const p2Base = p2.split('*')[0];
+        if (p1Base && p2Base && (p1.startsWith(p2Base) || p2.startsWith(p1Base))) {
+          overlaps.push(`${p1} <-> ${p2}`);
+        }
+      }
+    }
+  }
+
+  return overlaps;
+}
+
+function getFileOwnership(workspaceId: string): Map<string, string> {
+  const ownership = new Map<string, string>();
+  const agents = getAgents(workspaceId);
+
+  for (const agent of agents) {
+    if (agent.status !== 'offline' && agent.ownedPaths) {
+      for (const p of agent.ownedPaths) {
+        ownership.set(p, agent.name);
+      }
+    }
+  }
+
+  return ownership;
+}
+
+function checkOwnershipConflicts(workspaceId: string, newPaths: string[], excludeAgentId?: string): Array<{ path: string; owner: string }> {
+  const conflicts: Array<{ path: string; owner: string }> = [];
+  const agents = getAgents(workspaceId);
+
+  for (const agent of agents) {
+    if (agent.id === excludeAgentId) continue;
+    if (agent.status === 'offline') continue;
+    if (!agent.ownedPaths || agent.ownedPaths.length === 0) continue;
+
+    const overlaps = checkPathOverlap(newPaths, agent.ownedPaths);
+    for (const overlap of overlaps) {
+      conflicts.push({ path: overlap, owner: agent.name });
+    }
+  }
+
+  return conflicts;
 }
 
 // ============ MAYOR PROMPT GENERATION ============
@@ -641,6 +847,87 @@ curl -X POST ${apiBase}/api/progress \\
   }'
 \`\`\`
 
+## GIT WORKTREES & PARALLEL WORK
+
+Sub-agents are automatically given their own git worktree (isolated copy of the codebase) when spawned. This prevents agents from interfering with each other's work.
+
+### Spawning Agents with File Ownership
+Always specify which files/directories an agent will work on to prevent conflicts:
+
+\`\`\`bash
+curl -X POST ${apiBase}/api/agents/spawn \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "\${workspace.id}",
+    "name": "auth-dev",
+    "role": "specialist",
+    "model": "sonnet",
+    "ownedPaths": ["src/auth/**", "src/hooks/useAuth.ts"],
+    "prompt": "Implement OAuth authentication..."
+  }'
+\`\`\`
+
+### Check File Ownership Before Spawning
+\`\`\`bash
+curl -X POST ${apiBase}/api/ownership/check \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "\${workspace.id}",
+    "paths": ["src/components/**"]
+  }'
+# Returns: {"conflicts": [], "hasConflicts": false}
+\`\`\`
+
+### View Current File Ownership
+\`\`\`bash
+curl "${apiBase}/api/ownership?workspaceId=\${workspace.id}"
+\`\`\`
+
+### List Active Worktrees
+\`\`\`bash
+curl "${apiBase}/api/worktrees?workspaceId=\${workspace.id}"
+\`\`\`
+
+## MERGE QUEUE PROTOCOL
+
+When sub-agents complete their work, they should submit to the merge queue instead of merging directly.
+
+### Submit to Merge Queue
+\`\`\`bash
+curl -X POST ${apiBase}/api/merge-queue \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "\${workspace.id}",
+    "agentId": "agent-uuid",
+    "agentName": "auth-dev",
+    "branch": "agent/auth-dev/oauth-impl",
+    "title": "Implement OAuth authentication",
+    "description": "Added Google OAuth flow with useAuth hook",
+    "filesChanged": ["src/auth/**", "src/hooks/useAuth.ts"]
+  }'
+\`\`\`
+
+### View Merge Queue
+\`\`\`bash
+curl "${apiBase}/api/merge-queue?workspaceId=\${workspace.id}"
+\`\`\`
+
+### Mark Merge Request as Merged
+\`\`\`bash
+curl -X PATCH ${apiBase}/api/merge-queue/MR-001 \\
+  -H "Content-Type: application/json" \\
+  -d '{"status": "merged"}'
+# This automatically notifies other agents to rebase
+\`\`\`
+
+### Merge Queue Workflow
+1. Agent completes work on their branch
+2. Agent submits MR to merge queue
+3. You (Mayor) review and approve
+4. Mark MR as merged
+5. System notifies other agents to rebase
+6. Next MR in queue proceeds
+
 ## YOUR IDENTITY
 Agent ID: ${mayorId}
 Agent Name: mayor
@@ -758,6 +1045,35 @@ curl -X POST ${apiBase}/api/messages \\
 
 The Mayor will review your work and delete this agent session.
 
+## GIT WORKTREE (Your Isolated Workspace)
+${agent.worktree ? `You are working in an isolated git worktree:
+- Worktree Path: ${agent.worktree}
+- Branch: ${agent.worktreeBranch}
+
+Your changes are isolated from other agents. When done, commit your work and submit to the merge queue.` : `You are working in the main workspace directory. Be careful not to modify files that other agents are working on.`}
+
+${agent.ownedPaths && agent.ownedPaths.length > 0 ? `## FILE OWNERSHIP
+You own and are responsible for these files/directories:
+${agent.ownedPaths.map(p => '- ' + p).join('\n')}
+
+Do NOT modify files outside your ownership scope.` : ''}
+
+## MERGE QUEUE SUBMISSION
+When your work is complete, submit to the merge queue:
+\`\`\`bash
+curl -X POST ${apiBase}/api/merge-queue \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "${workspace.id}",
+    "agentId": "${agent.id}",
+    "agentName": "${agent.name}",
+    "branch": "${agent.worktreeBranch || 'your-branch-name'}",
+    "title": "Brief description of changes",
+    "description": "Detailed description",
+    "filesChanged": ${agent.ownedPaths ? JSON.stringify(agent.ownedPaths) : '["list", "of", "files"]'}
+  }'
+\`\`\`
+
 ## YOUR IDENTITY
 Agent ID: ${agent.id}
 Agent Name: ${agent.name}
@@ -765,6 +1081,8 @@ Role: ${agent.role}
 Model: ${agent.model}
 Workspace ID: ${workspace.id}
 Workspace Name: ${workspace.name}
+${agent.worktree ? `Worktree: ${agent.worktree}
+Branch: ${agent.worktreeBranch}` : ''}
 
 Begin working on your assigned task. Start by logging your initial progress.`;
 }
@@ -784,6 +1102,8 @@ async function spawnMayorForWorkspace(workspace: Workspace): Promise<Agent> {
     status: 'starting',
     currentTask: null,
     worktree: null,
+    worktreeBranch: null,
+    ownedPaths: [],  // Mayor doesn't own specific files
     tmuxSession: getTmuxSessionName(workspace, 'mayor'),
     pid: null,
     lastSeen: now,
@@ -811,7 +1131,8 @@ async function spawnMayorForWorkspace(workspace: Workspace): Promise<Agent> {
   return mayor;
 }
 
-async function spawnClaudeAgent(agent: Agent, workspace: Workspace, prompt: string): Promise<boolean> {
+// Spawn agent in a specific directory (used for worktrees)
+async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt: string, workingDir: string): Promise<boolean> {
   const sessionName = agent.tmuxSession || getTmuxSessionName(workspace, agent.role === 'mayor' ? 'mayor' : agent.name);
 
   // Kill existing session if it exists
@@ -819,8 +1140,8 @@ async function spawnClaudeAgent(agent: Agent, workspace: Workspace, prompt: stri
     killTmuxSession(sessionName);
   }
 
-  // Create tmux session
-  if (!createTmuxSession(sessionName, workspace.workingDirectory)) {
+  // Create tmux session in the specified directory
+  if (!createTmuxSession(sessionName, workingDir)) {
     return false;
   }
 
@@ -849,10 +1170,6 @@ async function spawnClaudeAgent(agent: Agent, workspace: Workspace, prompt: stri
   }
 
   try {
-    // Start claude in INTERACTIVE mode with:
-    // --dangerously-skip-permissions: bypass permission prompts
-    // --append-system-prompt: add our agent context to the default system prompt
-    // This keeps the session interactive (no -p flag)
     const claudeCmd = `${claudePath} --dangerously-skip-permissions --append-system-prompt "$(cat '${promptFile}')"`;
     execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${claudeCmd}' Enter`, { encoding: 'utf-8' });
 
@@ -868,9 +1185,7 @@ async function spawnClaudeAgent(agent: Agent, workspace: Workspace, prompt: stri
           // For sub-agents, prompt them to begin their assigned task
           initialMessage = 'Begin working on your assigned task now. Start by reading the relevant files, then make the required changes. Log your progress via the API as you work.';
         }
-        // Escape single quotes in the message for shell safety
         const escapedMessage = initialMessage.replace(/'/g, "'\\''");
-        // Send message and Enter (C-m) separately for reliability
         execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${escapedMessage}'`, { encoding: 'utf-8' });
         execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' C-m`, { encoding: 'utf-8' });
       } catch (e) {
@@ -884,6 +1199,11 @@ async function spawnClaudeAgent(agent: Agent, workspace: Workspace, prompt: stri
     killTmuxSession(sessionName);
     return false;
   }
+}
+
+// Legacy function - spawns in workspace directory
+async function spawnClaudeAgent(agent: Agent, workspace: Workspace, prompt: string): Promise<boolean> {
+  return spawnClaudeAgentInDir(agent, workspace, prompt, workspace.workingDirectory);
 }
 
 async function stopWorkspace(workspaceId: string): Promise<{ success: boolean; logs: string[] }> {
@@ -1606,7 +1926,16 @@ app.get('/api/agents/:id', (req: Request, res: Response) => {
 });
 
 app.post('/api/agents/spawn', async (req: Request, res: Response) => {
-  const { name, role = 'specialist', model = 'sonnet', prompt, workspaceId: bodyWorkspaceId } = req.body;
+  const {
+    name,
+    role = 'specialist',
+    model = 'sonnet',
+    prompt,
+    workspaceId: bodyWorkspaceId,
+    ownedPaths = [],  // File/directory patterns this agent owns
+    useWorktree = true,  // Whether to create a git worktree for this agent
+    branchName  // Optional custom branch name (defaults to slugified task description)
+  } = req.body;
 
   const workspaceId = bodyWorkspaceId || getWorkspaceIdFromRequest(req);
   if (!workspaceId) {
@@ -1638,6 +1967,18 @@ app.post('/api/agents/spawn', async (req: Request, res: Response) => {
     return;
   }
 
+  // Check for file ownership conflicts
+  if (ownedPaths.length > 0) {
+    const conflicts = checkOwnershipConflicts(workspaceId, ownedPaths);
+    if (conflicts.length > 0) {
+      res.status(409).json({
+        error: 'File ownership conflict detected',
+        conflicts: conflicts.map(c => `${c.path} is owned by ${c.owner}`)
+      });
+      return;
+    }
+  }
+
   const now = new Date().toISOString();
   const agent: Agent = {
     id: uuidv4(),
@@ -1647,6 +1988,8 @@ app.post('/api/agents/spawn', async (req: Request, res: Response) => {
     status: 'starting',
     currentTask: null,
     worktree: null,
+    worktreeBranch: null,
+    ownedPaths: ownedPaths || [],
     tmuxSession: getTmuxSessionName(workspace, name),
     pid: null,
     lastSeen: now,
@@ -1654,18 +1997,37 @@ app.post('/api/agents/spawn', async (req: Request, res: Response) => {
     workspaceId
   };
 
+  // Create git worktree for sub-agents (not mayors) if workspace is a git repo
+  let agentWorkingDir = workspace.workingDirectory;
+  if (useWorktree && role !== 'mayor') {
+    const taskBranch = branchName || slugify(name + '-' + Date.now());
+    const worktreeResult = createWorktree(workspace, name, taskBranch);
+    if (worktreeResult) {
+      agent.worktree = worktreeResult.path;
+      agent.worktreeBranch = worktreeResult.branch;
+      agentWorkingDir = worktreeResult.path;
+      console.log(`Agent ${name} will work in worktree at ${agentWorkingDir}`);
+    }
+  }
+
   agents.push(agent);
   saveAgents(workspaceId);
   broadcast('agent:created', agent, workspaceId);
 
-  // Generate full prompt and spawn
+  // Generate full prompt and spawn (use worktree directory if available)
   const fullPrompt = generateSubAgentPrompt(agent, workspace, prompt);
-  const success = await spawnClaudeAgent(agent, workspace, fullPrompt);
+  const success = await spawnClaudeAgentInDir(agent, workspace, fullPrompt, agentWorkingDir);
 
   if (success) {
     agent.status = 'working';
   } else {
     agent.status = 'offline';
+    // Clean up worktree on failure
+    if (agent.worktree) {
+      removeWorktree(workspace, agent.worktree);
+      agent.worktree = null;
+      agent.worktreeBranch = null;
+    }
   }
   saveAgents(workspaceId);
   broadcast('agent:updated', agent, workspaceId);
@@ -1707,11 +2069,18 @@ app.delete('/api/agents/:id', (req: Request, res: Response) => {
     killTmuxSession(agent.tmuxSession);
   }
 
+  // Clean up worktree if it exists
+  const workspace = workspaces.find(w => w.id === foundWorkspaceId);
+  if (agent.worktree && workspace) {
+    console.log(`Cleaning up worktree for agent ${agent.name} at ${agent.worktree}`);
+    removeWorktree(workspace, agent.worktree);
+  }
+
   agents.splice(index, 1);
   saveAgents(foundWorkspaceId);
   broadcast('agent:deleted', { id: agent.id }, foundWorkspaceId);
 
-  res.json({ success: true });
+  res.json({ success: true, worktreeRemoved: !!agent.worktree });
 });
 
 // ============ PROGRESS API ============
@@ -1869,6 +2238,281 @@ app.patch('/api/messages/:id/read', (req: Request, res: Response) => {
   }
 
   res.status(404).json({ error: 'Message not found' });
+});
+
+// ============ MERGE QUEUE API ============
+
+app.get('/api/merge-queue', (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceIdFromRequest(req);
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId is required' });
+    return;
+  }
+
+  const queue = getMergeQueue(workspaceId);
+  // Return sorted by position
+  res.json(queue.sort((a, b) => a.position - b.position));
+});
+
+app.post('/api/merge-queue', (req: Request, res: Response) => {
+  const { agentId, agentName, branch, targetBranch = 'main', title, description, filesChanged = [], workspaceId: bodyWorkspaceId } = req.body;
+
+  const workspaceId = bodyWorkspaceId || getWorkspaceIdFromRequest(req);
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId is required' });
+    return;
+  }
+
+  if (!agentId || !branch || !title) {
+    res.status(400).json({ error: 'agentId, branch, and title are required' });
+    return;
+  }
+
+  const queue = getMergeQueue(workspaceId);
+  const now = new Date().toISOString();
+
+  // Check for file conflicts with other pending MRs
+  const conflictsWith: string[] = [];
+  for (const mr of queue) {
+    if (mr.status === 'pending' || mr.status === 'in_queue') {
+      const overlaps = checkPathOverlap(filesChanged, mr.filesChanged);
+      if (overlaps.length > 0) {
+        conflictsWith.push(mr.id);
+      }
+    }
+  }
+
+  // Calculate position (end of queue)
+  const maxPosition = queue.reduce((max, mr) => Math.max(max, mr.position), -1);
+
+  const mergeRequest: MergeRequest = {
+    id: `MR-${String(queue.length + 1).padStart(3, '0')}`,
+    agentId,
+    agentName: agentName || 'unknown',
+    branch,
+    targetBranch,
+    title,
+    description: description || '',
+    status: conflictsWith.length > 0 ? 'conflict' : 'in_queue',
+    position: maxPosition + 1,
+    created: now,
+    updated: now,
+    mergedAt: null,
+    conflictsWith,
+    filesChanged
+  };
+
+  queue.push(mergeRequest);
+  saveMergeQueue(workspaceId);
+  broadcast('merge-queue:added', mergeRequest, workspaceId);
+
+  // If there are conflicts, send message to the agent
+  if (conflictsWith.length > 0) {
+    const messages = getMessages(workspaceId);
+    const conflictingMRs = queue.filter(mr => conflictsWith.includes(mr.id));
+    const conflictMsg: Message = {
+      id: uuidv4(),
+      from: 'merge-queue',
+      to: agentName || agentId,
+      timestamp: now,
+      content: `Your merge request "${title}" has file conflicts with: ${conflictingMRs.map(mr => `${mr.title} (${mr.agentName})`).join(', ')}. Please coordinate with the other agents or wait for their MRs to merge first.`,
+      read: false,
+      type: 'blocker'
+    };
+    messages.push(conflictMsg);
+    saveMessages(workspaceId);
+    broadcast('message:created', conflictMsg, workspaceId);
+  }
+
+  res.status(201).json(mergeRequest);
+});
+
+app.patch('/api/merge-queue/:id', (req: Request, res: Response) => {
+  const { status, position } = req.body;
+  const mrId = req.params.id;
+
+  // Find MR across all workspaces
+  let foundWorkspaceId: string | null = null;
+  let queue: MergeRequest[] = [];
+  let mrIndex = -1;
+
+  for (const ws of workspaces) {
+    queue = getMergeQueue(ws.id);
+    mrIndex = queue.findIndex(mr => mr.id === mrId);
+    if (mrIndex !== -1) {
+      foundWorkspaceId = ws.id;
+      break;
+    }
+  }
+
+  if (mrIndex === -1 || !foundWorkspaceId) {
+    res.status(404).json({ error: 'Merge request not found' });
+    return;
+  }
+
+  const mr = queue[mrIndex];
+  const now = new Date().toISOString();
+
+  if (status) {
+    mr.status = status;
+    mr.updated = now;
+
+    if (status === 'merged') {
+      mr.mergedAt = now;
+
+      // Notify other agents to rebase
+      const agents = getAgents(foundWorkspaceId);
+      const messages = getMessages(foundWorkspaceId);
+
+      for (const agent of agents) {
+        if (agent.id !== mr.agentId && agent.status === 'working' && agent.worktreeBranch) {
+          const rebaseMsg: Message = {
+            id: uuidv4(),
+            from: 'merge-queue',
+            to: agent.name,
+            timestamp: now,
+            content: `Branch "${mr.branch}" has been merged to ${mr.targetBranch}. Please rebase your branch (${agent.worktreeBranch}) to avoid conflicts.`,
+            read: false,
+            type: 'action_required'
+          };
+          messages.push(rebaseMsg);
+          broadcast('message:created', rebaseMsg, foundWorkspaceId);
+        }
+      }
+      saveMessages(foundWorkspaceId);
+
+      // Update positions of remaining items
+      for (const otherMr of queue) {
+        if (otherMr.position > mr.position) {
+          otherMr.position--;
+        }
+      }
+
+      // Check if any conflicting MRs can now proceed
+      for (const otherMr of queue) {
+        if (otherMr.conflictsWith.includes(mr.id)) {
+          otherMr.conflictsWith = otherMr.conflictsWith.filter(id => id !== mr.id);
+          if (otherMr.conflictsWith.length === 0 && otherMr.status === 'conflict') {
+            otherMr.status = 'in_queue';
+            otherMr.updated = now;
+            broadcast('merge-queue:updated', otherMr, foundWorkspaceId);
+          }
+        }
+      }
+    }
+  }
+
+  if (position !== undefined) {
+    // Reorder queue
+    const oldPosition = mr.position;
+    mr.position = position;
+    mr.updated = now;
+
+    for (const otherMr of queue) {
+      if (otherMr.id !== mr.id) {
+        if (oldPosition < position && otherMr.position > oldPosition && otherMr.position <= position) {
+          otherMr.position--;
+        } else if (oldPosition > position && otherMr.position >= position && otherMr.position < oldPosition) {
+          otherMr.position++;
+        }
+      }
+    }
+  }
+
+  saveMergeQueue(foundWorkspaceId);
+  broadcast('merge-queue:updated', mr, foundWorkspaceId);
+
+  res.json(mr);
+});
+
+app.delete('/api/merge-queue/:id', (req: Request, res: Response) => {
+  const mrId = req.params.id;
+
+  // Find MR across all workspaces
+  let foundWorkspaceId: string | null = null;
+  let queue: MergeRequest[] = [];
+  let mrIndex = -1;
+
+  for (const ws of workspaces) {
+    queue = getMergeQueue(ws.id);
+    mrIndex = queue.findIndex(mr => mr.id === mrId);
+    if (mrIndex !== -1) {
+      foundWorkspaceId = ws.id;
+      break;
+    }
+  }
+
+  if (mrIndex === -1 || !foundWorkspaceId) {
+    res.status(404).json({ error: 'Merge request not found' });
+    return;
+  }
+
+  const mr = queue[mrIndex];
+
+  // Update positions of remaining items
+  for (const otherMr of queue) {
+    if (otherMr.position > mr.position) {
+      otherMr.position--;
+    }
+    // Remove from conflicts list
+    if (otherMr.conflictsWith.includes(mr.id)) {
+      otherMr.conflictsWith = otherMr.conflictsWith.filter(id => id !== mr.id);
+    }
+  }
+
+  queue.splice(mrIndex, 1);
+  saveMergeQueue(foundWorkspaceId);
+  broadcast('merge-queue:deleted', { id: mr.id }, foundWorkspaceId);
+
+  res.json({ success: true });
+});
+
+// ============ WORKTREE API ============
+
+app.get('/api/worktrees', (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceIdFromRequest(req);
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId is required' });
+    return;
+  }
+
+  const workspace = workspaces.find(w => w.id === workspaceId);
+  if (!workspace) {
+    res.status(404).json({ error: 'Workspace not found' });
+    return;
+  }
+
+  const worktrees = listWorktrees(workspace);
+  res.json(worktrees);
+});
+
+app.get('/api/ownership', (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceIdFromRequest(req);
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId is required' });
+    return;
+  }
+
+  const ownership = getFileOwnership(workspaceId);
+  res.json(Object.fromEntries(ownership));
+});
+
+app.post('/api/ownership/check', (req: Request, res: Response) => {
+  const { paths, workspaceId: bodyWorkspaceId, excludeAgentId } = req.body;
+
+  const workspaceId = bodyWorkspaceId || getWorkspaceIdFromRequest(req);
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId is required' });
+    return;
+  }
+
+  if (!paths || !Array.isArray(paths)) {
+    res.status(400).json({ error: 'paths array is required' });
+    return;
+  }
+
+  const conflicts = checkOwnershipConflicts(workspaceId, paths, excludeAgentId);
+  res.json({ conflicts, hasConflicts: conflicts.length > 0 });
 });
 
 // ============ STATS API ============

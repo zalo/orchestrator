@@ -113,13 +113,24 @@ GET /api/beads/next/available
 
 # Agents
 GET /api/agents
-POST /api/agents/spawn             { workspaceId, name, role, model, prompt }
+POST /api/agents/spawn             { workspaceId, name, role, model, prompt, ownedPaths?, useWorktree?, branchName? }
 GET/DELETE /api/agents/:id
 
 # Progress & Messages
 GET/POST /api/progress
 GET/POST /api/messages
 PATCH /api/messages/:id/read
+
+# Merge Queue
+GET /api/merge-queue              List merge queue
+POST /api/merge-queue             { workspaceId, agentId, agentName, branch, title, description?, filesChanged? }
+PATCH /api/merge-queue/:id        { status?, position? }
+DELETE /api/merge-queue/:id
+
+# Worktrees & Ownership
+GET /api/worktrees                List git worktrees
+GET /api/ownership                Get file ownership map
+POST /api/ownership/check         { paths, excludeAgentId? } - Check for conflicts
 
 # Filesystem (for workspace creation UI)
 GET /api/filesystem?path=/
@@ -128,6 +139,35 @@ POST /api/filesystem/mkdir
 # Stats
 GET /api/stats
 ```
+
+## Git Worktrees
+
+Sub-agents automatically get their own git worktree when spawned (if the workspace is a git repo). This isolates their changes from other agents.
+
+- Worktrees are stored in `../.{workspace-name}-worktrees/{agent-name}/`
+- Each agent gets a branch named `agent/{agent-name}/{branch-name}`
+- Worktrees are automatically cleaned up when agents are deleted
+- Set `useWorktree: false` in spawn request to disable
+
+## File Ownership
+
+Agents can declare which files they own via `ownedPaths` when spawned. The system:
+- Prevents spawning agents with conflicting file ownership
+- Returns 409 Conflict if ownership overlap is detected
+- Tracks ownership across active agents only (offline agents don't count)
+
+Ownership patterns support globs:
+- `src/auth/**` - all files under src/auth
+- `src/components/Button.tsx` - specific file
+- `*.test.ts` - pattern matching
+
+## Merge Queue
+
+When agents complete work in their worktrees, they submit to a merge queue instead of merging directly. This enables:
+- Sequential merge strategy to avoid conflicts
+- Automatic rebase notifications when merges happen
+- Conflict detection based on file overlap
+- Position tracking in the queue
 
 ## Environment Variables
 - `PORT` - Server port (default: 3001)
