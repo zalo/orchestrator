@@ -46,6 +46,11 @@ interface Bead {
   created: string;
   updated: string;
   audit: AuditEntry[];
+  // Test verification
+  requiresTests: boolean;  // Whether this bead requires tests to pass before completion
+  testStatus: 'pending' | 'running' | 'passed' | 'failed' | 'skipped' | null;
+  testOutput: string | null;  // Last test output/error message
+  testRunAt: string | null;  // When tests were last run
 }
 
 interface AuditEntry {
@@ -566,6 +571,62 @@ ID: ${workspace.id}
 Working Directory: ${workspace.workingDirectory}
 API Base URL: ${apiBase}
 
+## PROJECT CONTEXT (from bootstrap)
+${(() => {
+  const bootstrap = loadBootstrap(workspace.id);
+  if (!bootstrap) return 'No bootstrap data available. Run POST /api/bootstrap to generate.';
+
+  const lines: string[] = [];
+
+  // Project type and structure
+  if (bootstrap.packageInfo) {
+    lines.push(`**Project Type**: ${bootstrap.packageInfo.type}${bootstrap.packageInfo.name ? ` (${bootstrap.packageInfo.name})` : ''}`);
+  }
+
+  // Key files
+  if (bootstrap.structure.keyFiles.length > 0) {
+    lines.push(`**Key Files**: ${bootstrap.structure.keyFiles.join(', ')}`);
+  }
+
+  // Entry points
+  if (bootstrap.structure.entryPoints.length > 0) {
+    lines.push(`**Entry Points**: ${bootstrap.structure.entryPoints.join(', ')}`);
+  }
+
+  // Directory structure (top-level only)
+  const topDirs = bootstrap.structure.directories.filter(d => !d.includes('/'));
+  if (topDirs.length > 0) {
+    lines.push(`**Top-Level Dirs**: ${topDirs.join(', ')}`);
+  }
+
+  // Git info
+  if (bootstrap.gitInfo.isRepo) {
+    lines.push(`**Git**: Branch \`${bootstrap.gitInfo.branch || 'unknown'}\`${bootstrap.gitInfo.hasUncommitted ? ' (uncommitted changes)' : ''}`);
+  }
+
+  // Commands
+  if (bootstrap.conventions.buildCommand) {
+    lines.push(`**Build**: \`${bootstrap.conventions.buildCommand}\``);
+  }
+  if (bootstrap.conventions.testCommand) {
+    lines.push(`**Test**: \`${bootstrap.conventions.testCommand}\``);
+  }
+
+  // Conventions
+  const conventions: string[] = [];
+  if (bootstrap.conventions.hasClaudeMd) conventions.push('CLAUDE.md');
+  if (bootstrap.conventions.hasSkills) conventions.push('Skills');
+  if (bootstrap.conventions.hasDocs) conventions.push('Docs');
+  if (bootstrap.conventions.hasTests) conventions.push('Tests');
+  if (conventions.length > 0) {
+    lines.push(`**Has**: ${conventions.join(', ')}`);
+  }
+
+  return lines.join('\\n');
+})()}
+
+Query full bootstrap data: \`curl "${apiBase}/api/bootstrap?workspaceId=\${workspace.id}"\`
+
 ## ORCHESTRATOR API
 
 ### Beads (Work Items)
@@ -796,7 +857,35 @@ WHEN DONE:
 2. Message mayor with type "completion" including summary
 \`\`\`
 
+## SKILLS SYSTEM (On-Demand Knowledge)
+
+The workspace has a skills library at \`.claude/skills/\` containing documented solutions and patterns. **Query skills before tackling unfamiliar tasks.**
+
+### List Available Skills
+\`\`\`bash
+curl "${apiBase}/api/skills?workspaceId=\${workspace.id}"
+\`\`\`
+
+### Read a Specific Skill
+\`\`\`bash
+curl "${apiBase}/api/skills/[skill-name]?workspaceId=\${workspace.id}"
+\`\`\`
+
+### Search Skills
+\`\`\`bash
+curl "${apiBase}/api/skills/search/[query]?workspaceId=\${workspace.id}"
+\`\`\`
+
 ## KNOWLEDGE DOCUMENTATION
+
+### When to Create a New Skill
+Document a skill when you:
+- Solve a **challenging problem** that required significant troubleshooting
+- Discover a **non-obvious pattern** that future agents should know
+- Complete a **repeatable process** that others will need to do
+- Fix a **tricky bug** whose solution isn't obvious
+
+This builds institutional knowledge that makes future work faster and more reliable.
 
 ### Document Successful Solutions
 When you successfully complete a task (especially after troubleshooting), document HOW you did it:
@@ -948,7 +1037,14 @@ curl -X POST ${apiBase}/api/messages \\
     "content": "...",
     "type": "completion"
   }'
+
+# Query skills for guidance on unfamiliar tasks
+curl "${apiBase}/api/skills?workspaceId=${workspace.id}"
+curl "${apiBase}/api/skills/[skill-name]?workspaceId=${workspace.id}"
 \`\`\`
+
+## SKILLS (Query Before Unfamiliar Tasks)
+Check the skills library for documented solutions before tackling unfamiliar problems.
 
 ## WORKFLOW
 1. **Start**: Log initial progress showing you've started
@@ -962,7 +1058,19 @@ curl -X POST ${apiBase}/api/messages \\
 6. **Blocked**: If stuck, send blocker message to mayor immediately
 
 ## TESTING REQUIREMENTS
-For web-based changes:
+
+### Before Marking a Bead Complete:
+Beads have test verification. Run tests and record results before marking done.
+
+\`\`\`bash
+# Record test results for a bead
+curl -X POST ${apiBase}/api/beads/BEAD-001/test \\
+  -H "Content-Type: application/json" \\
+  -d '{"testStatus": "passed", "command": "npm test"}'
+# testStatus: pending, running, passed, failed, skipped
+\`\`\`
+
+### For web-based changes:
 - Use Playwright MCP tools to test your changes
 - Take screenshots before and after modifications
 - Check browser console for errors
@@ -1451,6 +1559,11 @@ app.post('/api/workspaces/:id/start', async (req: Request, res: Response) => {
   }
 
   try {
+    // Run bootstrap to gather project context
+    console.log(`Running bootstrap for workspace ${workspace.name}...`);
+    const bootstrapResult = runBootstrap(workspace);
+    console.log(`Bootstrap complete: ${bootstrapResult.structure.directories.length} directories, ${bootstrapResult.structure.keyFiles.length} key files`);
+
     // Spawn mayor for this workspace
     const mayor = await spawnMayorForWorkspace(workspace);
 
@@ -1460,9 +1573,9 @@ app.post('/api/workspaces/:id/start', async (req: Request, res: Response) => {
     workspace.lastActivity = new Date().toISOString();
     saveWorkspaces();
 
-    broadcast('workspace:started', { workspace, mayor });
+    broadcast('workspace:started', { workspace, mayor, bootstrap: bootstrapResult });
 
-    res.json({ workspace, mayor });
+    res.json({ workspace, mayor, bootstrap: bootstrapResult });
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });
   }
@@ -1719,7 +1832,7 @@ app.get('/api/beads/:id', (req: Request, res: Response) => {
 });
 
 app.post('/api/beads', (req: Request, res: Response) => {
-  const { title, description, priority = 5, assignee = null, blocks = [], blockedBy = [], workspaceId: bodyWorkspaceId } = req.body;
+  const { title, description, priority = 5, assignee = null, blocks = [], blockedBy = [], requiresTests = true, workspaceId: bodyWorkspaceId } = req.body;
 
   const workspaceId = bodyWorkspaceId || getWorkspaceIdFromRequest(req);
   if (!workspaceId) {
@@ -1745,7 +1858,11 @@ app.post('/api/beads', (req: Request, res: Response) => {
     blockedBy,
     created: now,
     updated: now,
-    audit: [{ time: now, action: 'created', by: 'system' }]
+    audit: [{ time: now, action: 'created', by: 'system' }],
+    requiresTests,
+    testStatus: null,
+    testOutput: null,
+    testRunAt: null
   };
 
   beads.push(bead);
@@ -1791,9 +1908,19 @@ app.patch('/api/beads/:id', (req: Request, res: Response) => {
     return;
   }
 
-  const { status, assignee, priority, title, description, blocks, blockedBy } = req.body;
+  const { status, assignee, priority, title, description, blocks, blockedBy, requiresTests, testStatus, testOutput, skipTestCheck } = req.body;
   const bead = beads[index];
   const now = new Date().toISOString();
+  let testWarning: string | null = null;
+
+  // Check test verification when marking as done
+  if (status === 'done' && bead.status !== 'done') {
+    if (bead.requiresTests && bead.testStatus !== 'passed' && bead.testStatus !== 'skipped' && !skipTestCheck) {
+      testWarning = `Warning: Bead marked as done but tests have not passed (testStatus: ${bead.testStatus || 'not run'}). Set skipTestCheck: true to override.`;
+      // Add audit entry for bypassed test check
+      bead.audit.push({ time: now, action: 'test_check_bypassed', by: assignee || 'system', details: { testStatus: bead.testStatus } });
+    }
+  }
 
   if (status && status !== bead.status) {
     bead.audit.push({ time: now, action: 'status_change', by: assignee || 'system', details: { from: bead.status, to: status } });
@@ -1809,12 +1936,94 @@ app.patch('/api/beads/:id', (req: Request, res: Response) => {
   if (blocks !== undefined) bead.blocks = blocks;
   if (blockedBy !== undefined) bead.blockedBy = blockedBy;
 
+  // Test verification fields
+  if (requiresTests !== undefined) bead.requiresTests = requiresTests;
+  if (testStatus !== undefined) {
+    bead.testStatus = testStatus;
+    bead.testRunAt = now;
+    bead.audit.push({ time: now, action: 'test_status_change', by: assignee || 'system', details: { status: testStatus } });
+  }
+  if (testOutput !== undefined) bead.testOutput = testOutput;
+
   bead.updated = now;
   beads[index] = bead;
   saveBeads(foundWorkspaceId);
   broadcast('bead:updated', bead, foundWorkspaceId);
 
-  res.json(bead);
+  // Include warning in response if tests weren't verified
+  const response: Record<string, unknown> = { ...bead };
+  if (testWarning) {
+    response.warning = testWarning;
+  }
+  res.json(response);
+});
+
+// Record test results for a bead
+app.post('/api/beads/:id/test', (req: Request, res: Response) => {
+  const { testStatus, testOutput, command } = req.body;
+  const beadId = req.params.id;
+
+  // Validate test status
+  const validStatuses = ['pending', 'running', 'passed', 'failed', 'skipped'];
+  if (!testStatus || !validStatuses.includes(testStatus)) {
+    res.status(400).json({ error: `testStatus must be one of: ${validStatuses.join(', ')}` });
+    return;
+  }
+
+  // Find bead across workspaces
+  let foundWorkspaceId: string | null = null;
+  let beads: Bead[] = [];
+  let index = -1;
+
+  const specificWorkspaceId = getWorkspaceIdFromRequest(req);
+  if (specificWorkspaceId) {
+    beads = getBeads(specificWorkspaceId);
+    index = beads.findIndex(b => b.id === beadId);
+    if (index !== -1) {
+      foundWorkspaceId = specificWorkspaceId;
+    }
+  } else {
+    for (const ws of workspaces) {
+      beads = getBeads(ws.id);
+      index = beads.findIndex(b => b.id === beadId);
+      if (index !== -1) {
+        foundWorkspaceId = ws.id;
+        break;
+      }
+    }
+  }
+
+  if (index === -1 || !foundWorkspaceId) {
+    res.status(404).json({ error: 'Bead not found' });
+    return;
+  }
+
+  const bead = beads[index];
+  const now = new Date().toISOString();
+
+  bead.testStatus = testStatus;
+  bead.testRunAt = now;
+  if (testOutput !== undefined) bead.testOutput = testOutput;
+  bead.updated = now;
+
+  bead.audit.push({
+    time: now,
+    action: 'test_recorded',
+    by: 'system',
+    details: { status: testStatus, command, hasOutput: !!testOutput }
+  });
+
+  saveBeads(foundWorkspaceId);
+  broadcast('bead:updated', bead, foundWorkspaceId);
+
+  res.json({
+    bead,
+    message: testStatus === 'passed'
+      ? 'Tests passed! Bead can now be marked as done.'
+      : testStatus === 'failed'
+        ? 'Tests failed. Fix issues before marking bead as done.'
+        : `Test status recorded: ${testStatus}`
+  });
 });
 
 app.delete('/api/beads/:id', (req: Request, res: Response) => {
@@ -2463,6 +2672,396 @@ app.post('/api/ownership/check', (req: Request, res: Response) => {
 
   const conflicts = checkOwnershipConflicts(workspaceId, paths, excludeAgentId);
   res.json({ conflicts, hasConflicts: conflicts.length > 0 });
+});
+
+// ============ BOOTSTRAP PROTOCOL ============
+
+interface BootstrapResult {
+  workspaceId: string;
+  timestamp: string;
+  structure: {
+    directories: string[];
+    keyFiles: string[];
+    entryPoints: string[];
+  };
+  packageInfo: {
+    name?: string;
+    type?: string;  // npm, cargo, go, python, etc.
+    scripts?: Record<string, string>;
+    dependencies?: string[];
+  } | null;
+  gitInfo: {
+    isRepo: boolean;
+    branch?: string;
+    remotes?: string[];
+    hasUncommitted?: boolean;
+  };
+  conventions: {
+    hasClaudeMd: boolean;
+    hasSkills: boolean;
+    hasDocs: boolean;
+    hasTests: boolean;
+    testCommand?: string;
+    buildCommand?: string;
+  };
+}
+
+function getBootstrapFile(workspaceId: string): string {
+  return path.join(getWorkspaceDataDir(workspaceId), 'bootstrap.json');
+}
+
+function loadBootstrap(workspaceId: string): BootstrapResult | null {
+  const filepath = getBootstrapFile(workspaceId);
+  if (fs.existsSync(filepath)) {
+    try {
+      return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function saveBootstrap(workspaceId: string, result: BootstrapResult): void {
+  fs.writeFileSync(getBootstrapFile(workspaceId), JSON.stringify(result, null, 2));
+}
+
+function runBootstrap(workspace: Workspace): BootstrapResult {
+  const workDir = workspace.workingDirectory;
+  const result: BootstrapResult = {
+    workspaceId: workspace.id,
+    timestamp: new Date().toISOString(),
+    structure: { directories: [], keyFiles: [], entryPoints: [] },
+    packageInfo: null,
+    gitInfo: { isRepo: false },
+    conventions: {
+      hasClaudeMd: false,
+      hasSkills: false,
+      hasDocs: false,
+      hasTests: false,
+    }
+  };
+
+  try {
+    // Explore directory structure (top 2 levels, excluding node_modules, .git, etc.)
+    const ignoreDirs = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'target', '__pycache__', '.venv', 'venv']);
+
+    function walkDir(dir: string, depth: number, prefix: string = ''): void {
+      if (depth > 2) return;
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (ignoreDirs.has(entry.name)) continue;
+          const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+          if (entry.isDirectory()) {
+            result.structure.directories.push(relPath);
+            walkDir(path.join(dir, entry.name), depth + 1, relPath);
+          } else if (depth <= 1) {
+            // Key files at root or first level
+            const keyFilePatterns = [
+              /^package\.json$/, /^Cargo\.toml$/, /^go\.mod$/, /^pyproject\.toml$/, /^requirements\.txt$/,
+              /^tsconfig\.json$/, /^\.env\.example$/, /^Makefile$/, /^Dockerfile$/,
+              /^README\.md$/i, /^CLAUDE\.md$/i
+            ];
+            if (keyFilePatterns.some(p => p.test(entry.name))) {
+              result.structure.keyFiles.push(relPath);
+            }
+          }
+        }
+      } catch (e) {
+        // Skip unreadable directories
+      }
+    }
+
+    walkDir(workDir, 0);
+
+    // Identify entry points
+    const entryPatterns = ['src/index.ts', 'src/index.js', 'src/main.ts', 'src/main.js', 'index.ts', 'index.js',
+      'src/server.ts', 'src/app.ts', 'main.py', 'app.py', 'main.go', 'cmd/main.go', 'src/main.rs', 'src/lib.rs'];
+    for (const ep of entryPatterns) {
+      if (fs.existsSync(path.join(workDir, ep))) {
+        result.structure.entryPoints.push(ep);
+      }
+    }
+
+    // Parse package info
+    const packageJsonPath = path.join(workDir, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+        result.packageInfo = {
+          name: pkg.name,
+          type: 'npm',
+          scripts: pkg.scripts || {},
+          dependencies: [
+            ...Object.keys(pkg.dependencies || {}),
+            ...Object.keys(pkg.devDependencies || {})
+          ].slice(0, 20)  // Limit to 20
+        };
+
+        // Extract build/test commands
+        if (pkg.scripts?.build) result.conventions.buildCommand = 'npm run build';
+        if (pkg.scripts?.test) {
+          result.conventions.testCommand = 'npm test';
+          result.conventions.hasTests = true;
+        }
+      } catch (e) { }
+    }
+
+    // Cargo.toml for Rust projects
+    const cargoPath = path.join(workDir, 'Cargo.toml');
+    if (fs.existsSync(cargoPath)) {
+      result.packageInfo = { type: 'cargo' };
+      result.conventions.buildCommand = 'cargo build';
+      result.conventions.testCommand = 'cargo test';
+      result.conventions.hasTests = true;
+    }
+
+    // go.mod for Go projects
+    const goModPath = path.join(workDir, 'go.mod');
+    if (fs.existsSync(goModPath)) {
+      result.packageInfo = { type: 'go' };
+      result.conventions.buildCommand = 'go build';
+      result.conventions.testCommand = 'go test ./...';
+      result.conventions.hasTests = true;
+    }
+
+    // Check git info
+    const gitDir = path.join(workDir, '.git');
+    if (fs.existsSync(gitDir)) {
+      result.gitInfo.isRepo = true;
+      try {
+        result.gitInfo.branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: workDir, encoding: 'utf-8' }).trim();
+        const remoteOutput = execSync('git remote -v', { cwd: workDir, encoding: 'utf-8' });
+        result.gitInfo.remotes = [...new Set(remoteOutput.split('\n').filter(l => l).map(l => l.split(/\s+/)[0]))];
+        const statusOutput = execSync('git status --porcelain', { cwd: workDir, encoding: 'utf-8' });
+        result.gitInfo.hasUncommitted = statusOutput.trim().length > 0;
+      } catch (e) { }
+    }
+
+    // Check conventions
+    result.conventions.hasClaudeMd = fs.existsSync(path.join(workDir, 'CLAUDE.md'));
+    result.conventions.hasSkills = fs.existsSync(path.join(workDir, '.claude', 'skills'));
+    result.conventions.hasDocs = fs.existsSync(path.join(workDir, 'docs')) || fs.existsSync(path.join(workDir, 'doc'));
+    result.conventions.hasTests = result.conventions.hasTests ||
+      fs.existsSync(path.join(workDir, 'tests')) ||
+      fs.existsSync(path.join(workDir, 'test')) ||
+      fs.existsSync(path.join(workDir, '__tests__')) ||
+      fs.existsSync(path.join(workDir, 'spec'));
+
+  } catch (e) {
+    console.error('Bootstrap error:', e);
+  }
+
+  // Save results
+  saveBootstrap(workspace.id, result);
+
+  return result;
+}
+
+// Get bootstrap results
+app.get('/api/bootstrap', (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceIdFromRequest(req);
+
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId required' });
+    return;
+  }
+
+  const result = loadBootstrap(workspaceId);
+  if (!result) {
+    res.status(404).json({ error: 'No bootstrap data. Start the workspace to generate.' });
+    return;
+  }
+
+  res.json(result);
+});
+
+// Re-run bootstrap manually
+app.post('/api/bootstrap', (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceIdFromRequest(req);
+
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId required' });
+    return;
+  }
+
+  const workspace = workspaces.find(w => w.id === workspaceId);
+  if (!workspace) {
+    res.status(404).json({ error: 'Workspace not found' });
+    return;
+  }
+
+  const result = runBootstrap(workspace);
+  res.json(result);
+});
+
+// ============ SKILLS API ============
+
+interface Skill {
+  name: string;
+  filename: string;
+  description: string;
+  tags: string[];
+  lastUpdated: string;
+}
+
+function getSkillsDir(workspaceDir: string): string {
+  return path.join(workspaceDir, '.claude', 'skills');
+}
+
+function parseSkillMetadata(content: string, filename: string): Skill {
+  const lines = content.split('\n');
+  const name = lines[0]?.replace(/^#\s*/, '') || filename.replace('.md', '');
+
+  // Extract description from ## Overview or first paragraph
+  let description = '';
+  let inOverview = false;
+  for (const line of lines.slice(1)) {
+    if (line.startsWith('## Overview')) {
+      inOverview = true;
+      continue;
+    }
+    if (inOverview && line.trim()) {
+      description = line.trim();
+      break;
+    }
+    if (!inOverview && line.trim() && !line.startsWith('#')) {
+      description = line.trim();
+      break;
+    }
+  }
+
+  // Extract tags from ## Tags section or infer from content
+  const tags: string[] = [];
+  const tagsMatch = content.match(/## Tags\n([\s\S]*?)(?=\n##|\n$)/);
+  if (tagsMatch) {
+    const tagLines = tagsMatch[1].split('\n').filter(l => l.trim().startsWith('-'));
+    tags.push(...tagLines.map(l => l.replace(/^-\s*/, '').trim()));
+  }
+
+  // Extract last updated
+  const lastUpdatedMatch = content.match(/## Last Updated\n([^\n]+)/);
+  const lastUpdated = lastUpdatedMatch ? lastUpdatedMatch[1].trim() : '';
+
+  return { name, filename, description, tags, lastUpdated };
+}
+
+function listSkills(workspaceDir: string): Skill[] {
+  const skillsDir = getSkillsDir(workspaceDir);
+  if (!fs.existsSync(skillsDir)) {
+    return [];
+  }
+
+  const files = fs.readdirSync(skillsDir).filter(f => f.endsWith('.md'));
+  const skills: Skill[] = [];
+
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(path.join(skillsDir, file), 'utf-8');
+      skills.push(parseSkillMetadata(content, file));
+    } catch (e) {
+      console.error(`Error reading skill ${file}:`, e);
+    }
+  }
+
+  return skills;
+}
+
+function readSkill(workspaceDir: string, skillName: string): string | null {
+  const skillsDir = getSkillsDir(workspaceDir);
+
+  // Try exact match first
+  let filename = skillName.endsWith('.md') ? skillName : `${skillName}.md`;
+  let filepath = path.join(skillsDir, filename);
+
+  if (fs.existsSync(filepath)) {
+    return fs.readFileSync(filepath, 'utf-8');
+  }
+
+  // Try kebab-case conversion
+  filename = skillName.toLowerCase().replace(/\s+/g, '-') + '.md';
+  filepath = path.join(skillsDir, filename);
+
+  if (fs.existsSync(filepath)) {
+    return fs.readFileSync(filepath, 'utf-8');
+  }
+
+  return null;
+}
+
+// List all skills (metadata only)
+app.get('/api/skills', (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceIdFromRequest(req);
+
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId required' });
+    return;
+  }
+
+  const workspace = workspaces.find(w => w.id === workspaceId);
+  if (!workspace) {
+    res.status(404).json({ error: 'Workspace not found' });
+    return;
+  }
+
+  const skills = listSkills(workspace.workingDirectory);
+  res.json({ skills });
+});
+
+// Read a specific skill
+app.get('/api/skills/:name', (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceIdFromRequest(req);
+  const { name } = req.params;
+
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId required' });
+    return;
+  }
+
+  const workspace = workspaces.find(w => w.id === workspaceId);
+  if (!workspace) {
+    res.status(404).json({ error: 'Workspace not found' });
+    return;
+  }
+
+  const skillName = String(name);
+  const content = readSkill(workspace.workingDirectory, skillName);
+  if (!content) {
+    res.status(404).json({ error: 'Skill not found' });
+    return;
+  }
+
+  res.json({ name: skillName, content });
+});
+
+// Search skills by query
+app.get('/api/skills/search/:query', (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceIdFromRequest(req);
+  const searchQuery = String(req.params.query);
+
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspaceId required' });
+    return;
+  }
+
+  const workspace = workspaces.find(w => w.id === workspaceId);
+  if (!workspace) {
+    res.status(404).json({ error: 'Workspace not found' });
+    return;
+  }
+
+  const skills = listSkills(workspace.workingDirectory);
+  const lowerQuery = searchQuery.toLowerCase();
+
+  const matches = skills.filter(s =>
+    s.name.toLowerCase().includes(lowerQuery) ||
+    s.description.toLowerCase().includes(lowerQuery) ||
+    s.tags.some(t => t.toLowerCase().includes(lowerQuery))
+  );
+
+  res.json({ skills: matches, query: searchQuery });
 });
 
 // ============ STATS API ============

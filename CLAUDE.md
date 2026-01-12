@@ -109,6 +109,7 @@ POST /api/mayor/restart
 # Beads (all require workspaceId query param or active workspace)
 GET/POST /api/beads
 GET/PATCH/DELETE /api/beads/:id
+POST /api/beads/:id/test          { testStatus, testOutput?, command? } - Record test results
 GET /api/beads/next/available
 
 # Agents
@@ -131,6 +132,15 @@ DELETE /api/merge-queue/:id
 GET /api/worktrees                List git worktrees
 GET /api/ownership                Get file ownership map
 POST /api/ownership/check         { paths, excludeAgentId? } - Check for conflicts
+
+# Bootstrap (Project Context)
+GET /api/bootstrap                Get cached bootstrap results
+POST /api/bootstrap               Re-run bootstrap exploration
+
+# Skills (On-Demand Knowledge)
+GET /api/skills                   List all skills (metadata only)
+GET /api/skills/:name             Read a specific skill
+GET /api/skills/search/:query     Search skills by keyword
 
 # Filesystem (for workspace creation UI)
 GET /api/filesystem?path=/
@@ -162,6 +172,41 @@ When agents complete work in their worktrees, they submit to a merge queue inste
 - Automatic rebase notifications when merges happen
 - Conflict detection based on file overlap
 - Position tracking in the queue
+
+## Bootstrap Protocol
+
+When a workspace starts, the server automatically explores the project structure and caches the results. This gives the Mayor immediate context about:
+- Project type (npm, cargo, go, python)
+- Directory structure and key files
+- Entry points and build/test commands
+- Git status and conventions (CLAUDE.md, skills, docs, tests)
+
+Query bootstrap data: `GET /api/bootstrap?workspaceId=...`
+Re-run bootstrap: `POST /api/bootstrap?workspaceId=...`
+
+## Skills System
+
+Skills are documented solutions stored in `.claude/skills/`. Agents query skills before tackling unfamiliar tasks.
+
+- **List skills**: `GET /api/skills` - Returns metadata only (lightweight)
+- **Read skill**: `GET /api/skills/:name` - Returns full content
+- **Search**: `GET /api/skills/search/:query` - Search by name, description, or tags
+
+### Creating New Skills
+
+Document a skill when you solve a challenging problem, discover a non-obvious pattern, or complete a repeatable process. See `.claude/skills/creating-skills.md` for the template.
+
+## Test Verification
+
+Beads have test verification to ensure quality before completion:
+
+- `requiresTests` (default: true) - Whether tests must pass before marking done
+- `testStatus` - pending, running, passed, failed, skipped
+- `testOutput` - Last test output/error message
+
+Record test results: `POST /api/beads/:id/test { testStatus, testOutput?, command? }`
+
+When marking a bead as "done" without passing tests, the API returns a warning. Use `skipTestCheck: true` to override.
 
 ## Environment Variables
 - `PORT` - Server port (default: 3001)
