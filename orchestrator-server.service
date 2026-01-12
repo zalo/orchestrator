@@ -1,0 +1,27 @@
+[Unit]
+Description=Orchestrator Server - orchestrator.sels.tech
+Documentation=https://github.com/selstad/orchestrator
+After=network.target
+
+[Service]
+Type=simple
+User=selstad
+WorkingDirectory=/home/selstad/Desktop/terminal-workspace/orchestrator
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=DATA_DIR=/home/selstad/Desktop/terminal-workspace/orchestrator/data
+Environment=TMUX_SOCKET=/tmp/orchestrator-tmux.sock
+ExecStart=/home/selstad/.nvm/versions/node/v22.14.0/bin/node /home/selstad/Desktop/terminal-workspace/orchestrator/server/dist/server.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

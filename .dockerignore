@@ -1,0 +1,48 @@
+# Dependencies - installed fresh in container
+node_modules/
+*/node_modules/
+
+# Build outputs - built fresh in container
+dist/
+*/dist/
+build/
+*/build/
+
+# Development files
+*.log
+npm-debug.log*
+.env
+.env.*
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Docker files (prevent recursive builds)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Data directory (mounted as volume in production)
+data/
+
+# Documentation
+*.md
+LICENSE
+
+# Test files
+*.test.*
+*.spec.*
+__tests__/
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
