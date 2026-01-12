@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Workspace } from '../types';
+import AboutPage from './AboutPage';
 
 interface HomeScreenProps {
   workspaces: Workspace[];
@@ -7,6 +9,8 @@ interface HomeScreenProps {
   onDelete: (id: string) => void;
   onCreate: () => void;
 }
+
+type Tab = 'workspaces' | 'about';
 
 function formatTimeAgo(dateStr: string): string {
   const date = new Date(dateStr);
@@ -32,31 +36,82 @@ function truncatePath(path: string, maxLen = 40): string {
 }
 
 export default function HomeScreen({ workspaces, onOpen, onStop, onDelete, onCreate }: HomeScreenProps) {
-  return (
-    <div className="h-full overflow-auto p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-100">Workspaces</h1>
-            <p className="text-slate-400 text-sm mt-1">
-              {workspaces.length === 0
-                ? 'Create your first workspace to get started'
-                : `${workspaces.length} workspace${workspaces.length !== 1 ? 's' : ''}`
-              }
-            </p>
+  const [activeTab, setActiveTab] = useState<Tab>('workspaces');
+
+  if (activeTab === 'about') {
+    return (
+      <div className="h-full flex flex-col">
+        {/* Tab Navigation */}
+        <div className="border-b border-charcoal-lighter px-4 sm:px-6">
+          <div className="max-w-4xl mx-auto flex gap-1">
+            <button
+              onClick={() => setActiveTab('workspaces')}
+              className="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors relative"
+            >
+              Workspaces
+            </button>
+            <button
+              onClick={() => setActiveTab('about')}
+              className="px-4 py-3 text-sm font-medium text-slate-100 transition-colors relative"
+            >
+              About
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan to-purple" />
+            </button>
           </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <AboutPage />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Tab Navigation */}
+      <div className="border-b border-charcoal-lighter px-4 sm:px-6">
+        <div className="max-w-4xl mx-auto flex gap-1">
           <button
-            onClick={onCreate}
-            className="flex items-center gap-2 bg-gradient-to-r from-cyan to-purple text-charcoal font-semibold py-2.5 px-4 rounded-lg hover:opacity-90 transition-opacity min-h-[44px]"
+            onClick={() => setActiveTab('workspaces')}
+            className="px-4 py-3 text-sm font-medium text-slate-100 transition-colors relative"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            <span className="hidden sm:inline">Create Workspace</span>
-            <span className="sm:hidden">New</span>
+            Workspaces
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan to-purple" />
+          </button>
+          <button
+            onClick={() => setActiveTab('about')}
+            className="px-4 py-3 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors relative"
+          >
+            About
           </button>
         </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 sm:p-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-100">Workspaces</h1>
+              <p className="text-slate-400 text-sm mt-1">
+                {workspaces.length === 0
+                  ? 'Create your first workspace to get started'
+                  : `${workspaces.length} workspace${workspaces.length !== 1 ? 's' : ''}`
+                }
+              </p>
+            </div>
+            <button
+              onClick={onCreate}
+              className="flex items-center gap-2 bg-gradient-to-r from-cyan to-purple text-charcoal font-semibold py-2.5 px-4 rounded-lg hover:opacity-90 transition-opacity min-h-[44px]"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              <span className="hidden sm:inline">Create Workspace</span>
+              <span className="sm:hidden">New</span>
+            </button>
+          </div>
 
         {/* Workspace Grid */}
         {workspaces.length === 0 ? (
@@ -176,6 +231,7 @@ export default function HomeScreen({ workspaces, onOpen, onStop, onDelete, onCre
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
