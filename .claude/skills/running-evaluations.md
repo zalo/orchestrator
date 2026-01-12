@@ -50,9 +50,9 @@ curl -X POST http://localhost:3001/api/messages \
     "content": "EVALUATION RUN: Build [description]. Deploy full agent hierarchy with all roles."
   }'
 
-# 4. Prompt Mayor to check messages
-tmux -S /tmp/orchestrator-tmux.sock send-keys -t {workspace}-mayor \
-  "Check your messages and begin the evaluation task." C-m
+# 4. Prompt Mayor to check messages (use reliable nudge pattern)
+tmux -S /tmp/orchestrator-tmux.sock send-keys -t {workspace}-mayor -l "Check your messages and begin the evaluation task."
+sleep 0.5 && tmux -S /tmp/orchestrator-tmux.sock send-keys -t {workspace}-mayor Enter
 
 # 5. Monitor progress
 curl "http://localhost:3001/api/agents?workspaceId={WORKSPACE_ID}"
@@ -351,7 +351,7 @@ Based on evaluation findings:
 1. **Review Gate** - MRs now require `reviewStatus: approved` and `buildStatus: passed`
 2. **Bead Tracking** - Sub-agent prompts now require claiming beads
 3. **Role Instructions** - Reviewer and Refinery have specific gate instructions
-4. **Tmux Fix** - Changed `Enter` to `C-m` for reliability
+4. **Tmux Nudge Pattern** - Adopted Gas Town's reliable pattern: `-l` literal mode + 500ms debounce + separate Enter
 
 ## Tags
 evaluation, testing, metrics, analysis, quality, comparison, benchmarking

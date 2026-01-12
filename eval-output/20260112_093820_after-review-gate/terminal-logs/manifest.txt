@@ -1,0 +1,15 @@
+total 216
+drwxr-xr-x 2 selstad selstad  4096 Jan 12 09:38 .
+drwxr-xr-x 3 selstad selstad  4096 Jan 12 09:38 ..
+-rw-r--r-- 1 selstad selstad 16745 Jan 12 09:38 agent-patrol-2026-01-12T17-38-15-269Z.log
+-rw-r--r-- 1 selstad selstad 32679 Jan 12 09:38 code-reviewer-2026-01-12T17-38-15-301Z.log
+-rw-r--r-- 1 selstad selstad 19398 Jan 12 09:38 docs-dev-2026-01-12T17-38-15-375Z.log
+-rw-r--r-- 1 selstad selstad 19663 Jan 12 09:38 frontend-witness-2026-01-12T17-38-15-210Z.log
+-rw-r--r-- 1 selstad selstad 16155 Jan 12 09:38 homepage-dev-2026-01-12T17-38-15-449Z.log
+-rw-r--r-- 1 selstad selstad     0 Jan 12 09:38 manifest.txt
+-rw-r--r-- 1 selstad selstad 12515 Jan 12 09:38 mayor-2026-01-12T17-38-15-175Z.log
+-rw-r--r-- 1 selstad selstad 22702 Jan 12 09:38 merge-processor-2026-01-12T17-38-15-329Z.log
+-rw-r--r-- 1 selstad selstad  7132 Jan 12 09:38 project-scout-2026-01-12T17-38-15-193Z.log
+-rw-r--r-- 1 selstad selstad 20463 Jan 12 09:38 search-dev-2026-01-12T17-38-15-415Z.log
+-rw-r--r-- 1 selstad selstad 27034 Jan 12 09:38 styling-witness-2026-01-12T17-38-15-234Z.log
+-rw-r--r-- 1 selstad selstad  2238 Jan 12 09:38 theme-dev-2026-01-12T17-38-15-350Z.log

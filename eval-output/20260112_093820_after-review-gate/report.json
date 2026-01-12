@@ -1,0 +1,425 @@
+{
+  "meta": {
+    "workspaceId": "c302478b-6e4c-4465-be23-75db5f315452",
+    "workspaceName": "eval-docportal",
+    "evalStartTime": "2026-01-12T17:19:36.885Z",
+    "evalEndTime": "2026-01-12T17:37:40.567Z",
+    "generatedAt": "2026-01-12T17:38:26.410Z",
+    "projectDescription": "Agent Orchestration Evaluation"
+  },
+  "timing": {
+    "totalElapsedSeconds": 1083.682,
+    "timeToFirstBeadSeconds": 70.705,
+    "avgAgentSpawnLatencySeconds": 58.80033333333333,
+    "avgTaskDurationMinutes": 6.864426666666667,
+    "mergeQueueWaitMinutes": 0
+  },
+  "completion": {
+    "beadCompletionRatio": 0.7142857142857143,
+    "agentSuccessRatio": 0,
+    "firstPassRatio": 1,
+    "testPassRatio": 0.5714285714285714,
+    "beadsTotal": 7,
+    "beadsDone": 5,
+    "beadsBlocked": 0,
+    "agentsTotal": 10,
+    "agentsSucceeded": 0
+  },
+  "coordination": {
+    "totalMessages": 40,
+    "messagesPerAgent": 3.6363636363636362,
+    "blockerRatio": 0.15,
+    "completionRatio": 0.275,
+    "avgResponseTimeSeconds": 238.53,
+    "escalationRatio": 0.4,
+    "messagesByType": {
+      "action_required": 3,
+      "status": 7,
+      "completion": 11,
+      "nudge": 5,
+      "info": 2,
+      "request": 6,
+      "blocker": 6
+    }
+  },
+  "hierarchy": {
+    "maxSpawnDepth": 1,
+    "hierarchicalRatio": 0.36363636363636365,
+    "witnessSpawnCount": 2,
+    "delegationSuccessRatio": 0.75,
+    "agentsByRole": {
+      "mayor": 1,
+      "explorer": 1,
+      "witness": 2,
+      "deacon": 1,
+      "reviewer": 1,
+      "refinery": 1,
+      "specialist": 4
+    }
+  },
+  "roleMetrics": [
+    {
+      "role": "mayor",
+      "agentCount": 1,
+      "avgDurationMinutes": 2.3268166666666668,
+      "completionRatio": 0,
+      "messagesReceived": 16,
+      "messagesSent": 0,
+      "progressUpdates": 1,
+      "custom": {
+        "beadsCreated": 7,
+        "agentsSpawned": 10
+      }
+    },
+    {
+      "role": "specialist",
+      "agentCount": 4,
+      "avgDurationMinutes": 3.7699388888888894,
+      "completionRatio": 1,
+      "messagesReceived": 13,
+      "messagesSent": 4,
+      "progressUpdates": 7,
+      "custom": {
+        "blockersSent": 0
+      }
+    },
+    {
+      "role": "reviewer",
+      "agentCount": 1,
+      "avgDurationMinutes": 15.924983333333333,
+      "completionRatio": 3,
+      "messagesReceived": 4,
+      "messagesSent": 8,
+      "progressUpdates": 7,
+      "custom": {
+        "reviewsCompleted": 3
+      }
+    },
+    {
+      "role": "explorer",
+      "agentCount": 1,
+      "avgDurationMinutes": 1.67895,
+      "completionRatio": 1,
+      "messagesReceived": 0,
+      "messagesSent": 1,
+      "progressUpdates": 2,
+      "custom": {}
+    },
+    {
+      "role": "witness",
+      "agentCount": 2,
+      "avgDurationMinutes": 10.147958333333333,
+      "completionRatio": 1,
+      "messagesReceived": 7,
+      "messagesSent": 9,
+      "progressUpdates": 12,
+      "custom": {
+        "agentsMonitored": 4
+      }
+    },
+    {
+      "role": "refinery",
+      "agentCount": 1,
+      "avgDurationMinutes": 14.02445,
+      "completionRatio": 1,
+      "messagesReceived": 0,
+      "messagesSent": 9,
+      "progressUpdates": 7,
+      "custom": {}
+    },
+    {
+      "role": "deacon",
+      "agentCount": 1,
+      "avgDurationMinutes": 15.919616666666666,
+      "completionRatio": 0,
+      "messagesReceived": 0,
+      "messagesSent": 5,
+      "progressUpdates": 7,
+      "custom": {}
+    }
+  ],
+  "timeline": [
+    {
+      "timestamp": "2026-01-12T17:19:36.885Z",
+      "elapsedSeconds": 0,
+      "event": "Agent spawned: mayor (mayor)",
+      "agent": "mayor"
+    },
+    {
+      "timestamp": "2026-01-12T17:20:47.590Z",
+      "elapsedSeconds": 70.705,
+      "event": "Bead created: BEAD-001",
+      "beadId": "BEAD-001",
+      "details": "Analyze codebase structure"
+    },
+    {
+      "timestamp": "2026-01-12T17:20:48.268Z",
+      "elapsedSeconds": 71.383,
+      "event": "Bead created: BEAD-002",
+      "beadId": "BEAD-002",
+      "details": "Build homepage component"
+    },
+    {
+      "timestamp": "2026-01-12T17:20:49.004Z",
+      "elapsedSeconds": 72.119,
+      "event": "Bead created: BEAD-003",
+      "beadId": "BEAD-003",
+      "details": "Build documentation pages"
+    },
+    {
+      "timestamp": "2026-01-12T17:20:49.762Z",
+      "elapsedSeconds": 72.877,
+      "event": "Bead created: BEAD-004",
+      "beadId": "BEAD-004",
+      "details": "Build search functionality"
+    },
+    {
+      "timestamp": "2026-01-12T17:20:50.395Z",
+      "elapsedSeconds": 73.51,
+      "event": "Bead created: BEAD-005",
+      "beadId": "BEAD-005",
+      "details": "Implement theme system"
+    },
+    {
+      "timestamp": "2026-01-12T17:20:51.475Z",
+      "elapsedSeconds": 74.59,
+      "event": "Bead created: BEAD-006",
+      "beadId": "BEAD-006",
+      "details": "Code review all changes"
+    },
+    {
+      "timestamp": "2026-01-12T17:20:52.461Z",
+      "elapsedSeconds": 75.576,
+      "event": "Bead created: BEAD-007",
+      "beadId": "BEAD-007",
+      "details": "Process merge queue"
+    },
+    {
+      "timestamp": "2026-01-12T17:21:13.928Z",
+      "elapsedSeconds": 97.043,
+      "event": "Agent spawned: project-scout (explorer)",
+      "agent": "project-scout"
+    },
+    {
+      "timestamp": "2026-01-12T17:21:44.219Z",
+      "elapsedSeconds": 127.334,
+      "event": "Agent spawned: frontend-witness (witness)",
+      "agent": "frontend-witness"
+    },
+    {
+      "timestamp": "2026-01-12T17:21:44.563Z",
+      "elapsedSeconds": 127.678,
+      "event": "Agent spawned: styling-witness (witness)",
+      "agent": "styling-witness"
+    },
+    {
+      "timestamp": "2026-01-12T17:21:44.823Z",
+      "elapsedSeconds": 127.938,
+      "event": "Agent spawned: agent-patrol (deacon)",
+      "agent": "agent-patrol"
+    },
+    {
+      "timestamp": "2026-01-12T17:21:45.068Z",
+      "elapsedSeconds": 128.183,
+      "event": "Agent spawned: code-reviewer (reviewer)",
+      "agent": "code-reviewer"
+    },
+    {
+      "timestamp": "2026-01-12T17:21:45.510Z",
+      "elapsedSeconds": 128.625,
+      "event": "Agent spawned: merge-processor (refinery)",
+      "agent": "merge-processor"
+    },
+    {
+      "timestamp": "2026-01-12T17:22:34.530Z",
+      "elapsedSeconds": 177.645,
+      "event": "Agent spawned: theme-dev (specialist)",
+      "agent": "theme-dev"
+    },
+    {
+      "timestamp": "2026-01-12T17:22:36.888Z",
+      "elapsedSeconds": 180.003,
+      "event": "Bead completed: BEAD-001",
+      "beadId": "BEAD-001",
+      "agent": "system"
+    },
+    {
+      "timestamp": "2026-01-12T17:22:55.334Z",
+      "elapsedSeconds": 198.449,
+      "event": "Completion: project-scout",
+      "agent": "project-scout",
+      "details": "BEAD-001 COMPLETE: Codebase analysis done.\n\n## Tech Stack\n- **React 19.2** with TypeScript 5.9\n- **V"
+    },
+    {
+      "timestamp": "2026-01-12T17:25:13.213Z",
+      "elapsedSeconds": 336.328,
+      "event": "Agent spawned: docs-dev (specialist)",
+      "agent": "docs-dev"
+    },
+    {
+      "timestamp": "2026-01-12T17:25:14.128Z",
+      "elapsedSeconds": 337.243,
+      "event": "Agent spawned: search-dev (specialist)",
+      "agent": "search-dev"
+    },
+    {
+      "timestamp": "2026-01-12T17:25:29.910Z",
+      "elapsedSeconds": 353.025,
+      "event": "Agent spawned: homepage-dev (specialist)",
+      "agent": "homepage-dev"
+    },
+    {
+      "timestamp": "2026-01-12T17:27:43.278Z",
+      "elapsedSeconds": 486.393,
+      "event": "Bead completed: BEAD-005",
+      "beadId": "BEAD-005",
+      "agent": "system"
+    },
+    {
+      "timestamp": "2026-01-12T17:27:55.308Z",
+      "elapsedSeconds": 498.423,
+      "event": "Completion: styling-witness",
+      "agent": "styling-witness",
+      "details": "BEAD-005 COMPLETE: Theme system implemented.\n\n## Implementation\n- **ThemeContext**: Manages light/da"
+    },
+    {
+      "timestamp": "2026-01-12T17:28:11.996Z",
+      "elapsedSeconds": 515.111,
+      "event": "BLOCKER: merge-queue",
+      "agent": "merge-queue",
+      "details": "Your merge request \"Homepage with Hero, Features, and Navigation components\" has file conflicts with"
+    },
+    {
+      "timestamp": "2026-01-12T17:28:22.247Z",
+      "elapsedSeconds": 525.362,
+      "event": "Bead completed: BEAD-002",
+      "beadId": "BEAD-002",
+      "agent": "homepage-dev"
+    },
+    {
+      "timestamp": "2026-01-12T17:28:22.989Z",
+      "elapsedSeconds": 526.104,
+      "event": "Completion: homepage-dev",
+      "agent": "homepage-dev",
+      "details": "BEAD-002 complete: Homepage component built with Navigation, Hero, and Features sections. Tailwind C"
+    },
+    {
+      "timestamp": "2026-01-12T17:28:23.825Z",
+      "elapsedSeconds": 526.94,
+      "event": "Completion: homepage-dev",
+      "agent": "homepage-dev",
+      "details": "Task complete: Built homepage component (BEAD-002). Files: postcss.config.js, src/index.css, src/App"
+    },
+    {
+      "timestamp": "2026-01-12T17:28:48.349Z",
+      "elapsedSeconds": 551.464,
+      "event": "BLOCKER: merge-queue",
+      "agent": "merge-queue",
+      "details": "Your merge request \"Add documentation pages with sidebar navigation\" has file conflicts with: feat: "
+    },
+    {
+      "timestamp": "2026-01-12T17:28:59.849Z",
+      "elapsedSeconds": 562.964,
+      "event": "Completion: docs-dev",
+      "agent": "docs-dev",
+      "details": "BEAD-003 Complete: Built documentation pages with sidebar navigation.\n\nCreated:\n- DocsPage.tsx - Mai"
+    },
+    {
+      "timestamp": "2026-01-12T17:29:06.963Z",
+      "elapsedSeconds": 570.078,
+      "event": "Bead completed: BEAD-004",
+      "beadId": "BEAD-004",
+      "agent": "search-dev"
+    },
+    {
+      "timestamp": "2026-01-12T17:29:31.562Z",
+      "elapsedSeconds": 594.677,
+      "event": "BLOCKER: merge-queue",
+      "agent": "merge-queue",
+      "details": "Your merge request \"feat: implement search functionality with modal and keyboard shortcuts\" has file"
+    },
+    {
+      "timestamp": "2026-01-12T17:29:43.095Z",
+      "elapsedSeconds": 606.21,
+      "event": "Completion: search-dev",
+      "agent": "search-dev",
+      "details": "BEAD-004 complete: Implemented search functionality with modal, keyboard shortcuts (Cmd/Ctrl+K), fil"
+    },
+    {
+      "timestamp": "2026-01-12T17:29:43.428Z",
+      "elapsedSeconds": 606.543,
+      "event": "BLOCKER: agent-patrol",
+      "agent": "agent-patrol",
+      "details": "ALERT 17:29:19Z - MERGE CONFLICTS BLOCKING PROGRESS\n\n4 BEADS COMPLETED:\n- BEAD-002 (homepage) - home"
+    },
+    {
+      "timestamp": "2026-01-12T17:30:00.309Z",
+      "elapsedSeconds": 623.424,
+      "event": "BLOCKER: agent-patrol",
+      "agent": "agent-patrol",
+      "details": "URGENT: Your MR-001 is blocking 3 other merge requests!\n\ncode-reviewer found 2 lint errors:\n1. react"
+    },
+    {
+      "timestamp": "2026-01-12T17:30:08.283Z",
+      "elapsedSeconds": 631.398,
+      "event": "Completion: frontend-witness",
+      "agent": "frontend-witness",
+      "details": "FRONTEND BEADS COMPLETE:\n\n- BEAD-002 (Homepage): Done by homepage-dev. MR-002 submitted.\n- BEAD-003 "
+    },
+    {
+      "timestamp": "2026-01-12T17:30:24.870Z",
+      "elapsedSeconds": 647.985,
+      "event": "Completion: code-reviewer",
+      "agent": "code-reviewer",
+      "details": "MR-002 APPROVED: Homepage implementation approved. Build and lint pass. Clean component structure wi"
+    },
+    {
+      "timestamp": "2026-01-12T17:30:34.971Z",
+      "elapsedSeconds": 658.086,
+      "event": "Bead completed: BEAD-003",
+      "beadId": "BEAD-003",
+      "agent": "docs-dev"
+    },
+    {
+      "timestamp": "2026-01-12T17:31:10.948Z",
+      "elapsedSeconds": 694.063,
+      "event": "Completion: code-reviewer",
+      "agent": "code-reviewer",
+      "details": "MR-003 APPROVED: Documentation pages implementation approved. Build and lint pass. Good routing setu"
+    },
+    {
+      "timestamp": "2026-01-12T17:32:47.942Z",
+      "elapsedSeconds": 791.057,
+      "event": "BLOCKER: agent-patrol",
+      "agent": "agent-patrol",
+      "details": "ESCALATION 17:32Z\n\nMR-001 STILL BLOCKING - styling-witness non-responsive\n\nCurrent state:\n- All 5 im"
+    },
+    {
+      "timestamp": "2026-01-12T17:34:07.095Z",
+      "elapsedSeconds": 870.21,
+      "event": "Completion: code-reviewer",
+      "agent": "code-reviewer",
+      "details": "MR-001 APPROVED: Lint errors fixed. Build and lint now pass. Theme system implementation approved an"
+    },
+    {
+      "timestamp": "2026-01-12T17:35:07.058Z",
+      "elapsedSeconds": 930.173,
+      "event": "Completion: merge-processor",
+      "agent": "merge-processor",
+      "details": "MERGED: MR-001 (theme system) successfully merged to master. Build verified. Processing next MRs."
+    }
+  ],
+  "strengths": [
+    "Good first-pass success (100.0%)",
+    "Good role diversity (7 roles used)"
+  ],
+  "weaknesses": [],
+  "rawDataSummary": {
+    "beadCount": 7,
+    "agentCount": 11,
+    "progressEntryCount": 43,
+    "messageCount": 40,
+    "mergeRequestCount": 4,
+    "terminalLogCount": 11
+  }
+}

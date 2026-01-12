@@ -399,6 +399,39 @@ function saveTmuxSessionLog(sessionName: string, agentName: string, workspaceId?
   }
 }
 
+/**
+ * Send a message to a Claude Code session reliably.
+ * This is the canonical way to send messages to Claude sessions.
+ * Pattern from Gas Town: literal mode + debounce + Escape + separate Enter.
+ *
+ * @param sessionName - The tmux session name
+ * @param message - The message to send
+ * @param debounceMs - Time to wait between text and Enter (default 500ms)
+ */
+function nudgeTmuxSession(sessionName: string, message: string, debounceMs: number = 500): boolean {
+  try {
+    // 1. Send text in literal mode (-l) to handle special characters
+    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' -l ${JSON.stringify(message)}`, { encoding: 'utf-8' });
+
+    // 2. Wait for paste to complete (tested, required for Claude Code)
+    execSync(`sleep ${debounceMs / 1000}`, { encoding: 'utf-8' });
+
+    // 3. Send Escape to exit vim INSERT mode if enabled (harmless in normal mode)
+    try {
+      execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' Escape`, { encoding: 'utf-8' });
+    } catch { /* ignore - harmless if it fails */ }
+    execSync(`sleep 0.1`, { encoding: 'utf-8' });
+
+    // 4. Send Enter separately (more reliable than appending to send-keys)
+    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' Enter`, { encoding: 'utf-8' });
+
+    return true;
+  } catch (e) {
+    console.error(`Failed to nudge tmux session ${sessionName}:`, e);
+    return false;
+  }
+}
+
 // ============ GIT WORKTREE HELPERS ============
 
 function isGitRepo(dir: string): boolean {
@@ -1526,12 +1559,15 @@ async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt:
   }
 
   try {
+    // Launch Claude - use literal mode for the command itself
     const claudeCmd = `${claudePath} --dangerously-skip-permissions --append-system-prompt "$(cat '${promptFile}')"`;
-    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${claudeCmd}' C-m`, { encoding: 'utf-8' });
+    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' -l ${JSON.stringify(claudeCmd)}`, { encoding: 'utf-8' });
+    execSync(`sleep 0.1`, { encoding: 'utf-8' });
+    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' Enter`, { encoding: 'utf-8' });
 
     agent.tmuxSession = sessionName;
 
-    // Wait for claude to initialize then send initial message
+    // Wait for claude to initialize then send initial message using nudge pattern
     setTimeout(() => {
       try {
         let initialMessage: string;
@@ -1541,9 +1577,8 @@ async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt:
           // For sub-agents, prompt them to begin their assigned task
           initialMessage = 'Begin working on your assigned task now. Start by reading the relevant files, then make the required changes. Log your progress via the API as you work.';
         }
-        const escapedMessage = initialMessage.replace(/'/g, "'\\''");
-        execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${escapedMessage}'`, { encoding: 'utf-8' });
-        execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' C-m`, { encoding: 'utf-8' });
+        // Use the reliable nudge pattern (literal mode + debounce + Enter)
+        nudgeTmuxSession(sessionName, initialMessage);
       } catch (e) {
         console.error('Failed to send initial message:', e);
       }

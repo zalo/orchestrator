@@ -1,0 +1,7 @@
+{
+  "workspaceId": "c302478b-6e4c-4465-be23-75db5f315452",
+  "runLabel": "after-review-gate",
+  "collectedAt": "2026-01-12T09:38:20-08:00",
+  "apiBase": "http://localhost:3001",
+  "outputDir": "./eval-output/20260112_093820_after-review-gate"
+}

@@ -281,11 +281,16 @@ tmux -S /tmp/orchestrator-tmux.sock list-sessions
 # View agent output
 tmux -S /tmp/orchestrator-tmux.sock capture-pane -t {session-name} -p | tail -50
 
-# Manually send message to stuck agent
-tmux -S /tmp/orchestrator-tmux.sock send-keys -t {session-name} 'Your message here' C-m
+# Manually send message to stuck agent (reliable nudge pattern)
+# Step 1: Send text in literal mode
+tmux -S /tmp/orchestrator-tmux.sock send-keys -t {session-name} -l "Your message here"
+# Step 2: Wait for paste, then send Enter
+sleep 0.5 && tmux -S /tmp/orchestrator-tmux.sock send-keys -t {session-name} Enter
 
 # Attach to session interactively
 tmux -S /tmp/orchestrator-tmux.sock attach -t {session-name}
 ```
+
+**IMPORTANT**: Always use `-l` literal mode and send Enter separately. Never use `C-m` or combine message with Enter in a single command.
 
 If agents sit idle: check server logs for "Failed to send initial message" errors.
