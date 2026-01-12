@@ -1297,10 +1297,12 @@ curl -X PATCH ${apiBase}/api/agents/${agent.id}/status \\
 2. **Execute immediately** - Begin your task now, no preamble
 3. **Log progress** - Update progress API every few minutes
 4. **Check messages** - Respond to any messages from ${reportTo}
-5. **Test changes** - If web UI, use Playwright to verify
-6. **Update bead status** - Mark bead as "done" when complete (with test results!)
-7. **Message completion** - MUST send completion message when done
-8. **Message blockers** - MUST send blocker message if stuck (don't wait!)
+5. **VERIFY changes** - Run build-test-screenshot skill (build, console check, screenshot)
+6. **Fix any errors** - If verification fails, fix issues and re-verify
+7. **Submit to merge queue** - Only after verification passes
+8. **Update bead status** - Mark bead as "done" when complete (with test results!)
+9. **Message completion** - MUST send completion message when done
+10. **Message blockers** - MUST send blocker message if stuck (don't wait!)
 
 ## BEAD TRACKING (REQUIRED)
 You MUST track your work through beads. This ensures visibility and audit trails.
@@ -1326,25 +1328,53 @@ curl -X PATCH ${apiBase}/api/beads/BEAD-001 \\
 
 **Do NOT skip bead tracking.** If no suitable bead exists, ask ${reportTo} to create one.
 
-## TESTING REQUIREMENTS
+## TESTING REQUIREMENTS (MANDATORY)
 
-### Before Marking a Bead Complete:
-Beads have test verification. Run tests and record results before marking done.
-
+### Before Submitting to Merge Queue:
+You MUST verify your changes using the **build-test-screenshot** skill. Query it:
 \`\`\`bash
-# Record test results for a bead
-curl -X POST ${apiBase}/api/beads/BEAD-001/test \\
-  -H "Content-Type: application/json" \\
-  -d '{"testStatus": "passed", "command": "npm test"}'
-# testStatus: pending, running, passed, failed, skipped
+curl "${apiBase}/api/skills/build-test-screenshot?workspaceId=${workspace.id}"
 \`\`\`
 
-### For web-based changes:
-- Use Playwright MCP tools to test your changes
-- Take screenshots before and after modifications
-- Check browser console for errors
-- Include screenshot paths in your progress artifacts
-- Report any issues found with context
+### Verification Steps (REQUIRED):
+1. **Build**: Run \`npm run build\` - must pass with no errors
+2. **Test in Browser**: Use Playwright to navigate to your changes
+3. **Check Console**: Use \`browser_console_messages\` - must have no errors
+4. **Check Network**: Use \`browser_network_requests\` - must have no failed requests
+5. **Screenshot**: Use \`browser_take_screenshot\` to capture the result
+
+### Quick Verification Commands:
+\`\`\`bash
+# 1. Build (MUST pass)
+npm run build
+
+# 2. Start dev server in background
+npm run dev &
+sleep 3
+
+# 3. Use Playwright MCP tools:
+# - browser_navigate to http://localhost:5173
+# - browser_console_messages level="error"
+# - browser_network_requests
+# - browser_take_screenshot filename="verification.png"
+
+# 4. Kill dev server when done
+pkill -f "vite"
+\`\`\`
+
+### Record Results:
+\`\`\`bash
+curl -X POST ${apiBase}/api/beads/BEAD-001/test \\
+  -H "Content-Type: application/json" \\
+  -d '{"testStatus": "passed", "command": "npm run build && playwright verify"}'
+\`\`\`
+
+**DO NOT submit to merge queue if:**
+- Build fails
+- Console has errors
+- Network requests fail
+
+Fix all issues first, then re-verify.
 
 ## DOCUMENTATION REQUIREMENTS
 After successfully completing a task (especially after troubleshooting):
@@ -1395,7 +1425,9 @@ Your changes are isolated from other agents. When done, commit your work and sub
 
 
 ## MERGE QUEUE SUBMISSION
-When your work is complete, submit to the merge queue:
+**PREREQUISITE**: You MUST complete verification (build-test-screenshot) before submitting!
+
+When your work is verified and complete, submit to the merge queue:
 \`\`\`bash
 curl -X POST ${apiBase}/api/merge-queue \\
   -H "Content-Type: application/json" \\
