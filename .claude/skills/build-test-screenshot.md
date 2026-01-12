@@ -77,6 +77,13 @@ If the application has a UI (web, desktop, etc.), use available browser/UI tools
 - Check for failed network requests or API calls
 - Take a screenshot for visual verification
 
+**For web applications**: Use the Playwright MCP tools:
+- `browser_navigate` - Navigate to the application URL
+- `browser_console_messages` - Check for console errors
+- `browser_network_requests` - Check for failed network requests
+- `browser_take_screenshot` - Capture visual state
+- `browser_snapshot` - Get accessibility snapshot
+
 ### 5. Cleanup
 ```bash
 # Stop the application process
