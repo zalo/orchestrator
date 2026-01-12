@@ -1696,7 +1696,7 @@ function generateAgentSettings(agent: Agent, workspaceId: string): object {
 
   // Build the hook commands using curl to update status
   const sessionStartCmd = `curl -sX PATCH "${apiUrl}/api/agents/${agent.id}/status" -H "Content-Type: application/json" -d '{"status":"working","event":"session_start","workspaceId":"${workspaceId}"}'`;
-  const sessionStopCmd = `curl -sX PATCH "${apiUrl}/api/agents/${agent.id}/status" -H "Content-Type: application/json" -d '{"status":"offline","event":"session_stop","workspaceId":"${workspaceId}"}'`;
+  const sessionStopCmd = `curl -sX PATCH "${apiUrl}/api/agents/${agent.id}/status" -H "Content-Type: application/json" -d '{"status":"idle","event":"session_stop","workspaceId":"${workspaceId}"}'`;
   const idleCmd = `curl -sX PATCH "${apiUrl}/api/agents/${agent.id}/status" -H "Content-Type: application/json" -d '{"status":"idle","event":"idle","workspaceId":"${workspaceId}"}'`;
 
   return {
@@ -2906,7 +2906,7 @@ app.patch('/api/agents/:id/status', (req: Request, res: Response) => {
       messageContent = `[HOOK] ${agent.name} started working (${previousStatus} → working)`;
       break;
     case 'session_stop':
-      messageContent = `[HOOK] ${agent.name} stopped (${previousStatus} → offline)`;
+      messageContent = `[HOOK] ${agent.name} session ended, now idle (${previousStatus} → idle)`;
       break;
     case 'idle':
       messageContent = `[HOOK] ${agent.name} is now idle (${previousStatus} → idle)`;
@@ -3074,6 +3074,49 @@ app.post('/api/messages', (req: Request, res: Response) => {
   messages.push(message);
   saveMessages(workspaceId);
   broadcast('message:new', message, workspaceId);
+
+  // Check if target agent exists (skip for mayor - always exists if workspace is active)
+  if (to !== 'mayor') {
+    const agents = getAgents(workspaceId);
+    const targetAgent = agents.find(a => a.name === to);
+    const workspace = workspaces.find(w => w.id === workspaceId);
+
+    if (!targetAgent) {
+      // Agent doesn't exist - alert the mayor
+      console.log(`[MESSAGE] Target agent '${to}' does not exist in workspace ${workspaceId}, alerting mayor`);
+
+      const alertMessage = addMessage(
+        workspaceId,
+        'system',
+        'mayor',
+        `[ALERT] Message from '${from}' was sent to '${to}', but that agent does not exist. Message: "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`,
+        'action_required'
+      );
+
+      // Nudge the mayor
+      if (workspace) {
+        const mayorSession = getTmuxSessionName(workspace, 'mayor');
+        nudgeTmuxSession(mayorSession, `Alert: Message sent to non-existent agent '${to}'. Check your messages.`);
+      }
+    } else if (targetAgent.status === 'offline') {
+      // Agent exists but is offline - alert the mayor
+      console.log(`[MESSAGE] Target agent '${to}' is offline in workspace ${workspaceId}, alerting mayor`);
+
+      addMessage(
+        workspaceId,
+        'system',
+        'mayor',
+        `[ALERT] Message from '${from}' was sent to '${to}', but that agent is offline. You may need to respawn it. Message: "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`,
+        'action_required'
+      );
+
+      // Nudge the mayor
+      if (workspace) {
+        const mayorSession = getTmuxSessionName(workspace, 'mayor');
+        nudgeTmuxSession(mayorSession, `Alert: Message sent to offline agent '${to}'. Check your messages.`);
+      }
+    }
+  }
 
   res.status(201).json(message);
 });
