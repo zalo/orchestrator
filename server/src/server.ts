@@ -681,7 +681,7 @@ curl "${apiBase}/api/stats?workspaceId=\${workspace.id}"
 
 ### Best Practices
 - One focused task per sub-agent session
-- Clear file ownership between agents - avoid conflicts
+- Sub-agents work in isolated git worktrees (automatic)
 - Update beads immediately when status changes
 - Log progress regularly during active work
 - Keep the user informed of what's happening
@@ -737,10 +737,6 @@ When spawning sub-agents, include these sections in your prompt:
 You are a [ROLE] sub-agent. Your task:
 [SPECIFIC TASK DESCRIPTION]
 
-FILES YOU OWN (only edit these):
-- path/to/file1.ts
-- path/to/directory/
-
 EXPECTED OUTCOME:
 [What success looks like]
 
@@ -752,10 +748,10 @@ WHEN DONE:
 
 ### Parallel Work Coordination
 When spawning multiple agents for parallel work:
-- Ensure NO file overlap between agents
+- Each agent gets their own git worktree (isolated branch)
 - Create beads with proper blocks/blockedBy dependencies
 - Monitor all agents via the sidebar
-- Coordinate merges through progress messages
+- Coordinate merges through the merge queue
 
 ## TESTING PROTOCOLS
 
@@ -850,38 +846,6 @@ curl -X POST ${apiBase}/api/progress \\
 ## GIT WORKTREES & PARALLEL WORK
 
 Sub-agents are automatically given their own git worktree (isolated copy of the codebase) when spawned. This prevents agents from interfering with each other's work.
-
-### Spawning Agents with File Ownership
-Always specify which files/directories an agent will work on to prevent conflicts:
-
-\`\`\`bash
-curl -X POST ${apiBase}/api/agents/spawn \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "workspaceId": "\${workspace.id}",
-    "name": "auth-dev",
-    "role": "specialist",
-    "model": "sonnet",
-    "ownedPaths": ["src/auth/**", "src/hooks/useAuth.ts"],
-    "prompt": "Implement OAuth authentication..."
-  }'
-\`\`\`
-
-### Check File Ownership Before Spawning
-\`\`\`bash
-curl -X POST ${apiBase}/api/ownership/check \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "workspaceId": "\${workspace.id}",
-    "paths": ["src/components/**"]
-  }'
-# Returns: {"conflicts": [], "hasConflicts": false}
-\`\`\`
-
-### View Current File Ownership
-\`\`\`bash
-curl "${apiBase}/api/ownership?workspaceId=\${workspace.id}"
-\`\`\`
 
 ### List Active Worktrees
 \`\`\`bash
@@ -988,7 +952,7 @@ curl -X POST ${apiBase}/api/messages \\
 
 ## WORKFLOW
 1. **Start**: Log initial progress showing you've started
-2. **Work**: Execute your task, staying within your file ownership scope
+2. **Work**: Execute your task, modifying whatever files are needed
 3. **Update**: Log progress every few minutes during active work
 4. **Test**: If your work affects web UI, use Playwright to take screenshots and verify
 5. **Complete**: When done:
@@ -1050,13 +1014,8 @@ ${agent.worktree ? `You are working in an isolated git worktree:
 - Worktree Path: ${agent.worktree}
 - Branch: ${agent.worktreeBranch}
 
-Your changes are isolated from other agents. When done, commit your work and submit to the merge queue.` : `You are working in the main workspace directory. Be careful not to modify files that other agents are working on.`}
+Your changes are isolated from other agents. When done, commit your work and submit to the merge queue.` : `You are working in the main workspace directory.`}
 
-${agent.ownedPaths && agent.ownedPaths.length > 0 ? `## FILE OWNERSHIP
-You own and are responsible for these files/directories:
-${agent.ownedPaths.map(p => '- ' + p).join('\n')}
-
-Do NOT modify files outside your ownership scope.` : ''}
 
 ## MERGE QUEUE SUBMISSION
 When your work is complete, submit to the merge queue:
@@ -1070,7 +1029,7 @@ curl -X POST ${apiBase}/api/merge-queue \\
     "branch": "${agent.worktreeBranch || 'your-branch-name'}",
     "title": "Brief description of changes",
     "description": "Detailed description",
-    "filesChanged": ${agent.ownedPaths ? JSON.stringify(agent.ownedPaths) : '["list", "of", "files"]'}
+    "filesChanged": ["list", "files", "you", "modified"]
   }'
 \`\`\`
 

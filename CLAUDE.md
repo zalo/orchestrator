@@ -85,7 +85,7 @@ npm run lint               # ESLint
 `generateMayorPrompt()` and `generateSubAgentPrompt()` create comprehensive prompts including:
 - Full API reference with curl examples for beads, agents, progress, messages
 - Context preservation protocols (delegate builds/tests to sub-agents)
-- Work handoff protocol with file ownership boundaries
+- Work handoff protocol and git worktree isolation
 - Testing protocols with Playwright
 - Knowledge documentation guidelines
 
@@ -149,14 +149,11 @@ Sub-agents automatically get their own git worktree when spawned (if the workspa
 - Worktrees are automatically cleaned up when agents are deleted
 - Set `useWorktree: false` in spawn request to disable
 
-## File Ownership
+## File Ownership (Optional)
 
-Agents can declare which files they own via `ownedPaths` when spawned. This is tracked for documentation/visibility but **not enforced** - git worktrees provide the actual isolation between agents.
+Agents can optionally declare files they're working on via `ownedPaths` when spawned. This is **purely informational** - agents are free to modify any files as they discover what needs changing. Git worktrees provide the actual isolation between agents.
 
-Use ownership to:
-- Document what each agent is working on
-- Query which agent owns a file via `/api/ownership`
-- Help coordinate work between agents
+The `/api/ownership` endpoints exist for visibility only - they don't restrict agent behavior.
 
 ## Merge Queue
 
