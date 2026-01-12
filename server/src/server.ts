@@ -428,21 +428,15 @@ function saveTmuxSessionLog(sessionName: string, agentName: string, workspaceId?
  */
 function nudgeTmuxSession(sessionName: string, message: string, debounceMs: number = 500): boolean {
   try {
-    // 1. Send text using single quotes to prevent shell expansion
-    // Escape single quotes in message using '\'' pattern
+    // 1. Send text using -l (literal mode) to prevent tmux from interpreting special chars
+    // Escape single quotes in message using '\'' pattern for shell safety
     const escapedMessage = message.replace(/'/g, "'\\''");
-    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${escapedMessage}'`, { encoding: 'utf-8' });
+    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' -l '${escapedMessage}'`, { encoding: 'utf-8' });
 
     // 2. Wait for paste to complete (tested, required for Claude Code)
     execSync(`sleep ${debounceMs / 1000}`, { encoding: 'utf-8' });
 
-    // 3. Send Escape to exit vim INSERT mode if enabled (harmless in normal mode)
-    try {
-      execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' Escape`, { encoding: 'utf-8' });
-    } catch { /* ignore - harmless if it fails */ }
-    execSync(`sleep 0.1`, { encoding: 'utf-8' });
-
-    // 4. Send Enter separately (more reliable than appending to send-keys)
+    // 3. Send Enter separately (more reliable than appending to send-keys)
     execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' Enter`, { encoding: 'utf-8' });
 
     return true;
@@ -1816,7 +1810,7 @@ async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt:
       } catch (e) {
         console.error('Failed to send initial message:', e);
       }
-    }, 2000); // 2 seconds is enough for Claude to initialize
+    }, 5000); // 5 seconds to ensure Claude fully initializes (especially under load)
 
     return true;
   } catch (e) {
