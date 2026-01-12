@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Spawn a native sub-agent to verify your work before submitting to the merge queue. This agent will:
+Spawn a sub-agent to verify your work before submitting to the merge queue. This agent will:
 1. Build the project
-2. Start the dev server and monitor server logs for errors
-3. Test the page in Playwright
-4. Check for browser console errors and network failures
-5. Take a screenshot for visual verification
+2. Start the application and monitor logs for errors
+3. Visually verify the application (if applicable)
+4. Check for runtime errors and failures
+5. Take a screenshot for visual verification (if applicable)
 6. Report results back to you
 
 ## When to Use
@@ -15,7 +15,7 @@ Spawn a native sub-agent to verify your work before submitting to the merge queu
 **REQUIRED** before submitting to merge queue:
 - After implementing a new feature
 - After fixing a bug
-- After making UI changes
+- After making changes that affect the application
 - Before marking a bead as complete
 
 ## How to Spawn the Verification Agent
@@ -25,103 +25,96 @@ Use Claude Code's native Task tool to spawn a sub-agent:
 ```
 Use the Task tool with subagent_type="Explore" to verify my changes:
 
-Prompt: "Verify the build and test the web application:
+Prompt: "Verify the build and test the application:
 
-1. BUILD: Run 'npm run build' and report any errors
-2. START SERVER: Run 'npm run dev 2>&1 | tee /tmp/server.log &' to capture server output
-3. WAIT: Sleep 3-5 seconds for server to initialize
+1. BUILD: Run the project's build command (check package.json, Makefile, Cargo.toml, etc.) and report any errors
+2. START APPLICATION: Start the dev server/application with output captured to /tmp/server.log
+3. WAIT: Allow time for the application to initialize
 4. CHECK SERVER LOGS: Read /tmp/server.log and check for errors, warnings, or stack traces
-5. NAVIGATE: Use Playwright to navigate to http://localhost:5173 (or appropriate port)
-6. CHECK CONSOLE: Use browser_console_messages to get all console errors/warnings
-7. CHECK NETWORK: Use browser_network_requests to find any failed requests
-8. SCREENSHOT: Use browser_take_screenshot to capture the current state
-9. CLEANUP: Kill the dev server (pkill -f vite)
-10. REPORT: Summarize findings - build status, server errors, console errors, network failures, screenshot path
+5. VISUAL VERIFICATION (if web app):
+   - Navigate to the application URL using browser tools
+   - Check for console errors using browser_console_messages
+   - Check for network failures using browser_network_requests
+   - Take a screenshot using browser_take_screenshot
+6. CLEANUP: Stop the application
+7. REPORT: Summarize findings - build status, server errors, runtime errors, screenshot path (if applicable)
 
 If there are errors, list them clearly so they can be fixed."
 ```
 
-## Alternative: Direct Playwright Commands
+## Alternative: Direct Verification
 
 If you prefer to run verification yourself instead of spawning an agent:
 
 ### 1. Build
 ```bash
-npm run build
+# Use the appropriate build command for your project:
+# - Node.js: npm run build / yarn build
+# - Rust: cargo build
+# - Go: go build
+# - Python: python -m py_compile / pytest
+# - etc.
 ```
 
-### 2. Start Dev Server with Log Capture
+### 2. Start Application with Log Capture
 ```bash
-# Start server and capture output to log file
-npm run dev 2>&1 | tee /tmp/server.log &
-sleep 3  # Wait for server to start
+# Start the application and capture output to a log file
+# Example: <start-command> 2>&1 | tee /tmp/server.log &
+# Wait for startup to complete
+sleep 3
 ```
 
 ### 3. Check Server Logs for Errors
 ```bash
 # Look for errors, warnings, stack traces in server output
-grep -iE "(error|warn|exception|failed|stack)" /tmp/server.log || echo "No server errors found"
+grep -iE "(error|warn|exception|failed|stack|panic)" /tmp/server.log || echo "No server errors found"
 ```
 
-### 4. Navigate and Test with Playwright MCP
-```
-# Navigate to the page
-mcp__plugin_playwright_playwright__browser_navigate: url="http://localhost:5173"
+### 4. Visual Verification (if applicable)
+If the application has a UI (web, desktop, etc.), use available browser/UI tools to:
+- Navigate to the application
+- Check for console/runtime errors
+- Check for failed network requests or API calls
+- Take a screenshot for visual verification
 
-# Wait for page to load
-mcp__plugin_playwright_playwright__browser_wait_for: time=2
-
-# Check console for errors
-mcp__plugin_playwright_playwright__browser_console_messages: level="error"
-
-# Check network for failures
-mcp__plugin_playwright_playwright__browser_network_requests
-
-# Take screenshot
-mcp__plugin_playwright_playwright__browser_take_screenshot: filename="verification.png"
-
-# Get page snapshot for accessibility check
-mcp__plugin_playwright_playwright__browser_snapshot
-```
-
-### 5. Kill Dev Server and Cleanup
+### 5. Cleanup
 ```bash
-pkill -f "vite"  # or appropriate process
+# Stop the application process
+# Remove temporary log files
 rm -f /tmp/server.log
 ```
 
 ## What to Check For
 
-### Server Log Errors (Critical)
+### Server/Application Log Errors (Critical)
 - Compilation errors during startup
-- Module resolution failures
-- Port already in use
-- Unhandled exceptions/stack traces
-- TypeScript/ESLint errors in watch mode
+- Module/dependency resolution failures
+- Port or resource conflicts
+- Unhandled exceptions or stack traces
+- Configuration errors
 
-### Console Errors (Critical)
-- JavaScript runtime errors
-- React/Vue/framework errors
-- Failed module imports
-- Uncaught exceptions
+### Runtime Errors (Critical)
+- Application crashes or panics
+- Unhandled exceptions
+- Failed assertions
+- Memory or resource errors
 
-### Network Failures (Critical)
-- 4xx/5xx HTTP responses
-- Failed API calls
-- Missing assets (404s)
-- CORS errors
+### UI/Browser Errors (if applicable)
+- Console errors
+- Failed network requests (4xx/5xx responses)
+- Missing assets or resources
+- CORS or security errors
 
 ### Warnings (Review)
 - Deprecation warnings
-- React key warnings
-- Accessibility warnings
-- Server-side warnings
+- Performance warnings
+- Configuration warnings
 
 ## Handling Results
 
 ### If Build Fails
 1. Read the error output carefully
-2. Fix the TypeScript/compilation errors
+2. Fix compilation/build errors
 3. Re-run the build
 4. Do NOT proceed until build passes
 
@@ -129,42 +122,35 @@ rm -f /tmp/server.log
 1. Check /tmp/server.log for the full error
 2. Common issues:
    - Port in use → kill existing process or use different port
-   - Module not found → check imports and install dependencies
-   - TypeScript errors → fix type issues
-3. Fix the issue and restart the server
+   - Missing dependency → install required packages
+   - Configuration error → check config files
+3. Fix the issue and restart
 4. Re-run verification
 
-### If Console Errors Found
-1. Note the error message and stack trace
-2. Fix the runtime error in your code
+### If Runtime/UI Errors Found
+1. Note the error message and context
+2. Fix the error in your code
 3. Re-run verification
 4. Do NOT submit to merge queue until clean
 
-### If Network Failures Found
-1. Check if the endpoint exists
-2. Verify API is running (if applicable)
-3. Fix any broken imports/assets
-4. Re-run verification
-
 ### If All Clear
 1. Proceed to submit to merge queue
-2. Include screenshot path in your completion message
-3. Note "Build passed, no console errors" in your message
+2. Include screenshot path in your completion message (if applicable)
+3. Note "Build passed, verification clean" in your message
 
 ## Example Completion Message
 
 After successful verification:
 ```
-BEAD-003 COMPLETE: Implemented search modal with Ctrl+K shortcut.
+BEAD-003 COMPLETE: Implemented [feature description].
 
 Verification Results:
 - Build: PASSED
 - Server Logs: Clean (no errors)
-- Console Errors: None
-- Network Failures: None
-- Screenshot: verification-search-modal.png
+- Runtime Errors: None
+- Screenshot: verification.png (if applicable)
 
-Files changed: src/components/SearchModal.tsx, src/hooks/useKeyboardShortcut.ts
+Files changed: [list of files]
 Submitted to merge queue as MR-003.
 ```
 
@@ -200,9 +186,9 @@ Submitted to merge queue as MR-003.
 ### For Refinery (Post-Merge)
 After each successful merge, the refinery MUST run verification to ensure:
 1. The merged code builds successfully
-2. No server errors introduced
-3. No console errors in browser
-4. Application still functions correctly
+2. No server/application errors introduced
+3. No runtime errors
+4. Application still functions correctly (if applicable)
 
 If post-merge verification fails:
 1. Revert the merge immediately
@@ -212,4 +198,4 @@ If post-merge verification fails:
 
 ## Tags
 
-verification, testing, playwright, build, screenshot, quality-gate, pre-merge, post-merge, refinery
+verification, testing, build, screenshot, quality-gate, pre-merge, post-merge, refinery

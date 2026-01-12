@@ -1331,50 +1331,26 @@ curl -X PATCH ${apiBase}/api/beads/BEAD-001 \\
 ## TESTING REQUIREMENTS (MANDATORY)
 
 ### Before Submitting to Merge Queue:
-You MUST verify your changes using the **build-test-screenshot** skill. Query it:
+You MUST verify your changes using the **build-test-screenshot** skill:
+
 \`\`\`bash
 curl "${apiBase}/api/skills/build-test-screenshot?workspaceId=${workspace.id}"
 \`\`\`
 
-### Verification Steps (REQUIRED):
-1. **Build**: Run \`npm run build\` - must pass with no errors
-2. **Test in Browser**: Use Playwright to navigate to your changes
-3. **Check Console**: Use \`browser_console_messages\` - must have no errors
-4. **Check Network**: Use \`browser_network_requests\` - must have no failed requests
-5. **Screenshot**: Use \`browser_take_screenshot\` to capture the result
-
-### Quick Verification Commands:
-\`\`\`bash
-# 1. Build (MUST pass)
-npm run build
-
-# 2. Start dev server in background
-npm run dev &
-sleep 3
-
-# 3. Use Playwright MCP tools:
-# - browser_navigate to http://localhost:5173
-# - browser_console_messages level="error"
-# - browser_network_requests
-# - browser_take_screenshot filename="verification.png"
-
-# 4. Kill dev server when done
-pkill -f "vite"
-\`\`\`
+Follow the skill instructions to spawn a verification sub-agent that will:
+- Build the project
+- Start the application and check server logs for errors
+- Test in browser (if applicable) and check for console/network errors
+- Take a screenshot for visual verification
 
 ### Record Results:
 \`\`\`bash
 curl -X POST ${apiBase}/api/beads/BEAD-001/test \\
   -H "Content-Type: application/json" \\
-  -d '{"testStatus": "passed", "command": "npm run build && playwright verify"}'
+  -d '{"testStatus": "passed", "command": "build-test-screenshot verification"}'
 \`\`\`
 
-**DO NOT submit to merge queue if:**
-- Build fails
-- Console has errors
-- Network requests fail
-
-Fix all issues first, then re-verify.
+**DO NOT submit to merge queue if verification fails.** Fix all issues first, then re-verify.
 
 ## DOCUMENTATION REQUIREMENTS
 After successfully completing a task (especially after troubleshooting):
@@ -1575,45 +1551,23 @@ ${agent.role === 'refinery' ? `## REFINERY ROLE: Merge Queue Processor
 
 As the refinery, you process the merge queue sequentially. **You cannot merge unless the review gate passes.**
 
-### REQUIRED: Query the build-test-screenshot skill
-\\\`\\\`\\\`bash
-curl "${apiBase}/api/skills/build-test-screenshot?workspaceId=${workspace.id}"
-\\\`\\\`\\\`
-
 ### Merge Queue Workflow
 1. Fetch the merge queue to find items ready to merge
 2. Check that \`reviewStatus === 'approved'\` and \`buildStatus === 'passed'\`
 3. If gate passes, perform the actual git merge
 4. Mark the MR as merged
-5. **RUN POST-MERGE VERIFICATION** (see below)
+5. **RUN POST-MERGE VERIFICATION** using build-test-screenshot skill (see below)
 6. If verification fails → revert and notify author
 7. System will notify other agents to rebase
 
 ### POST-MERGE VERIFICATION (MANDATORY)
-After EACH successful merge, you MUST verify the merged code:
+After EACH successful merge, use the **build-test-screenshot** skill to verify the merged code:
 
 \\\`\\\`\\\`bash
-# 1. Build the project
-npm run build
-
-# 2. Start dev server with log capture
-npm run dev 2>&1 | tee /tmp/server.log &
-sleep 3
-
-# 3. Check server logs for errors
-grep -iE "(error|warn|exception|failed|stack)" /tmp/server.log
-
-# 4. Use Playwright to test:
-# - browser_navigate to http://localhost:5173
-# - browser_console_messages level="error"
-# - browser_network_requests
-# - browser_take_screenshot filename="post-merge-MR-XXX.png"
-
-# 5. Cleanup
-pkill -f "vite"
+curl "${apiBase}/api/skills/build-test-screenshot?workspaceId=${workspace.id}"
 \\\`\\\`\\\`
 
-### If Post-Merge Verification FAILS:
+Follow the skill instructions to spawn a verification sub-agent. If verification fails:
 1. **REVERT IMMEDIATELY**: \`git revert HEAD\`
 2. Mark MR as failed: \`curl -X PATCH ${apiBase}/api/merge-queue/MR-XXX -d '{"status":"conflict"}'\`
 3. Message the original author with the error details
