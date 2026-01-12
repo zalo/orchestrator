@@ -1575,12 +1575,49 @@ ${agent.role === 'refinery' ? `## REFINERY ROLE: Merge Queue Processor
 
 As the refinery, you process the merge queue sequentially. **You cannot merge unless the review gate passes.**
 
+### REQUIRED: Query the build-test-screenshot skill
+\\\`\\\`\\\`bash
+curl "${apiBase}/api/skills/build-test-screenshot?workspaceId=${workspace.id}"
+\\\`\\\`\\\`
+
 ### Merge Queue Workflow
 1. Fetch the merge queue to find items ready to merge
 2. Check that \`reviewStatus === 'approved'\` and \`buildStatus === 'passed'\`
 3. If gate passes, perform the actual git merge
 4. Mark the MR as merged
-5. System will notify other agents to rebase
+5. **RUN POST-MERGE VERIFICATION** (see below)
+6. If verification fails → revert and notify author
+7. System will notify other agents to rebase
+
+### POST-MERGE VERIFICATION (MANDATORY)
+After EACH successful merge, you MUST verify the merged code:
+
+\\\`\\\`\\\`bash
+# 1. Build the project
+npm run build
+
+# 2. Start dev server with log capture
+npm run dev 2>&1 | tee /tmp/server.log &
+sleep 3
+
+# 3. Check server logs for errors
+grep -iE "(error|warn|exception|failed|stack)" /tmp/server.log
+
+# 4. Use Playwright to test:
+# - browser_navigate to http://localhost:5173
+# - browser_console_messages level="error"
+# - browser_network_requests
+# - browser_take_screenshot filename="post-merge-MR-XXX.png"
+
+# 5. Cleanup
+pkill -f "vite"
+\\\`\\\`\\\`
+
+### If Post-Merge Verification FAILS:
+1. **REVERT IMMEDIATELY**: \`git revert HEAD\`
+2. Mark MR as failed: \`curl -X PATCH ${apiBase}/api/merge-queue/MR-XXX -d '{"status":"conflict"}'\`
+3. Message the original author with the error details
+4. Continue processing next item in queue
 
 ### Checking Gate Status
 \\\`\\\`\\\`bash

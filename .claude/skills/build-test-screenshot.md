@@ -4,10 +4,11 @@
 
 Spawn a native sub-agent to verify your work before submitting to the merge queue. This agent will:
 1. Build the project
-2. Start the dev server and test the page in Playwright
-3. Check for console errors and network failures
-4. Take a screenshot for visual verification
-5. Report results back to you
+2. Start the dev server and monitor server logs for errors
+3. Test the page in Playwright
+4. Check for browser console errors and network failures
+5. Take a screenshot for visual verification
+6. Report results back to you
 
 ## When to Use
 
@@ -27,12 +28,15 @@ Use the Task tool with subagent_type="Explore" to verify my changes:
 Prompt: "Verify the build and test the web application:
 
 1. BUILD: Run 'npm run build' and report any errors
-2. START SERVER: Run 'npm run dev' in background, wait for it to be ready
-3. NAVIGATE: Use Playwright to navigate to http://localhost:5173 (or appropriate port)
-4. CHECK CONSOLE: Use browser_console_messages to get all console errors/warnings
-5. CHECK NETWORK: Use browser_network_requests to find any failed requests
-6. SCREENSHOT: Use browser_take_screenshot to capture the current state
-7. REPORT: Summarize findings - build status, console errors, network failures, screenshot path
+2. START SERVER: Run 'npm run dev 2>&1 | tee /tmp/server.log &' to capture server output
+3. WAIT: Sleep 3-5 seconds for server to initialize
+4. CHECK SERVER LOGS: Read /tmp/server.log and check for errors, warnings, or stack traces
+5. NAVIGATE: Use Playwright to navigate to http://localhost:5173 (or appropriate port)
+6. CHECK CONSOLE: Use browser_console_messages to get all console errors/warnings
+7. CHECK NETWORK: Use browser_network_requests to find any failed requests
+8. SCREENSHOT: Use browser_take_screenshot to capture the current state
+9. CLEANUP: Kill the dev server (pkill -f vite)
+10. REPORT: Summarize findings - build status, server errors, console errors, network failures, screenshot path
 
 If there are errors, list them clearly so they can be fixed."
 ```
@@ -46,13 +50,20 @@ If you prefer to run verification yourself instead of spawning an agent:
 npm run build
 ```
 
-### 2. Start Dev Server (background)
+### 2. Start Dev Server with Log Capture
 ```bash
-npm run dev &
+# Start server and capture output to log file
+npm run dev 2>&1 | tee /tmp/server.log &
 sleep 3  # Wait for server to start
 ```
 
-### 3. Navigate and Test with Playwright MCP
+### 3. Check Server Logs for Errors
+```bash
+# Look for errors, warnings, stack traces in server output
+grep -iE "(error|warn|exception|failed|stack)" /tmp/server.log || echo "No server errors found"
+```
+
+### 4. Navigate and Test with Playwright MCP
 ```
 # Navigate to the page
 mcp__plugin_playwright_playwright__browser_navigate: url="http://localhost:5173"
@@ -73,12 +84,20 @@ mcp__plugin_playwright_playwright__browser_take_screenshot: filename="verificati
 mcp__plugin_playwright_playwright__browser_snapshot
 ```
 
-### 4. Kill Dev Server
+### 5. Kill Dev Server and Cleanup
 ```bash
 pkill -f "vite"  # or appropriate process
+rm -f /tmp/server.log
 ```
 
 ## What to Check For
+
+### Server Log Errors (Critical)
+- Compilation errors during startup
+- Module resolution failures
+- Port already in use
+- Unhandled exceptions/stack traces
+- TypeScript/ESLint errors in watch mode
 
 ### Console Errors (Critical)
 - JavaScript runtime errors
@@ -96,6 +115,7 @@ pkill -f "vite"  # or appropriate process
 - Deprecation warnings
 - React key warnings
 - Accessibility warnings
+- Server-side warnings
 
 ## Handling Results
 
@@ -104,6 +124,15 @@ pkill -f "vite"  # or appropriate process
 2. Fix the TypeScript/compilation errors
 3. Re-run the build
 4. Do NOT proceed until build passes
+
+### If Server Log Errors Found
+1. Check /tmp/server.log for the full error
+2. Common issues:
+   - Port in use → kill existing process or use different port
+   - Module not found → check imports and install dependencies
+   - TypeScript errors → fix type issues
+3. Fix the issue and restart the server
+4. Re-run verification
 
 ### If Console Errors Found
 1. Note the error message and stack trace
@@ -130,6 +159,7 @@ BEAD-003 COMPLETE: Implemented search modal with Ctrl+K shortcut.
 
 Verification Results:
 - Build: PASSED
+- Server Logs: Clean (no errors)
 - Console Errors: None
 - Network Failures: None
 - Screenshot: verification-search-modal.png
@@ -140,11 +170,12 @@ Submitted to merge queue as MR-003.
 
 ## Integration with Workflow
 
+### For Specialists (Pre-Merge)
 ```
 [Code Changes]
      │
      ▼
-[Run Build-Test-Screenshot Skill] ◄── YOU ARE HERE
+[Run Build-Test-Screenshot] ◄── SPECIALIST VERIFIES
      │
      ├── Errors? ──► Fix and retry
      │
@@ -155,9 +186,30 @@ Submitted to merge queue as MR-003.
 [Code Review]
      │
      ▼
-[Merge]
+[Merge by Refinery]
+     │
+     ▼
+[Run Build-Test-Screenshot] ◄── REFINERY VERIFIES POST-MERGE
+     │
+     ├── Errors? ──► Revert or fix
+     │
+     ▼
+[Notify Next Agent to Rebase]
 ```
+
+### For Refinery (Post-Merge)
+After each successful merge, the refinery MUST run verification to ensure:
+1. The merged code builds successfully
+2. No server errors introduced
+3. No console errors in browser
+4. Application still functions correctly
+
+If post-merge verification fails:
+1. Revert the merge immediately
+2. Notify the original author via message
+3. Mark the MR as "conflict" or "failed"
+4. Continue with next item in queue
 
 ## Tags
 
-verification, testing, playwright, build, screenshot, quality-gate, pre-merge
+verification, testing, playwright, build, screenshot, quality-gate, pre-merge, post-merge, refinery
