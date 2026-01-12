@@ -128,6 +128,47 @@ const evalRuns: EvalRun[] = [
       weaknesses: [],
     },
   },
+  {
+    label: 'With Nudge Protocol',
+    timestamp: '2026-01-12T12:56:39',
+    report: {
+      meta: {
+        workspaceName: 'eval-docportal',
+        evalStartTime: '2026-01-12T20:29:11.008Z',
+        evalEndTime: '2026-01-12T20:47:49.588Z',
+        generatedAt: '2026-01-12T20:56:39.731Z',
+        projectDescription: 'Agent Orchestration Evaluation',
+      },
+      timing: {
+        totalElapsedSeconds: 1118.58,
+        timeToFirstBeadSeconds: 50.564,
+        avgAgentSpawnLatencySeconds: 43.994,
+      },
+      completion: {
+        beadCompletionRatio: 0.571,
+        agentSuccessRatio: 0,
+        firstPassRatio: 0.7,
+        testPassRatio: 0.571,
+        beadsTotal: 7,
+        beadsDone: 4,
+        agentsTotal: 10,
+      },
+      coordination: {
+        totalMessages: 92,
+        messagesPerAgent: 8.36,
+        blockerRatio: 0.098,
+        completionRatio: 0.217,
+      },
+      hierarchy: {
+        maxSpawnDepth: 1,
+        witnessSpawnCount: 2,
+        delegationSuccessRatio: 1,
+        agentsByRole: { mayor: 1, explorer: 1, deacon: 1, witness: 2, reviewer: 1, refinery: 1, specialist: 4 },
+      },
+      strengths: ['Low blocker rate - agents worked smoothly', 'Witness delegation highly effective', 'Good role diversity (7 roles used)'],
+      weaknesses: [],
+    },
+  },
 ];
 
 function formatDuration(seconds: number): string {

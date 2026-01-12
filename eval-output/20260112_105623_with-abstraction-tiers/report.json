@@ -1,0 +1,525 @@
+{
+  "meta": {
+    "workspaceId": "bcacbcf3-6efd-4256-9a38-499724a403eb",
+    "workspaceName": "eval-docportal",
+    "evalStartTime": "2026-01-12T18:15:35.567Z",
+    "evalEndTime": "2026-01-12T18:55:48.263Z",
+    "generatedAt": "2026-01-12T18:57:49.354Z",
+    "projectDescription": "Agent Orchestration Evaluation"
+  },
+  "timing": {
+    "totalElapsedSeconds": 2412.696,
+    "timeToFirstBeadSeconds": 213.219,
+    "avgAgentSpawnLatencySeconds": 52.43983333333333,
+    "avgTaskDurationMinutes": 28.782490000000003,
+    "mergeQueueWaitMinutes": 7.157526666666667
+  },
+  "completion": {
+    "beadCompletionRatio": 1,
+    "agentSuccessRatio": 1,
+    "firstPassRatio": 0.9090909090909091,
+    "testPassRatio": 0.2,
+    "beadsTotal": 5,
+    "beadsDone": 5,
+    "beadsBlocked": 0,
+    "agentsTotal": 14,
+    "agentsSucceeded": 14
+  },
+  "coordination": {
+    "totalMessages": 117,
+    "messagesPerAgent": 7.8,
+    "blockerRatio": 0.05128205128205128,
+    "completionRatio": 0.20512820512820512,
+    "avgResponseTimeSeconds": 160.43270454545456,
+    "escalationRatio": 0.21367521367521367,
+    "messagesByType": {
+      "action_required": 79,
+      "completion": 24,
+      "status": 8,
+      "blocker": 6
+    }
+  },
+  "hierarchy": {
+    "maxSpawnDepth": 0,
+    "hierarchicalRatio": 0,
+    "witnessSpawnCount": 0,
+    "delegationSuccessRatio": 0,
+    "agentsByRole": {
+      "mayor": 1,
+      "explorer": 2,
+      "deacon": 1,
+      "refinery": 1,
+      "reviewer": 2,
+      "witness": 2,
+      "specialist": 6
+    }
+  },
+  "roleMetrics": [
+    {
+      "role": "mayor",
+      "agentCount": 1,
+      "avgDurationMinutes": 37.89378333333333,
+      "completionRatio": 0,
+      "messagesReceived": 25,
+      "messagesSent": 7,
+      "progressUpdates": 2,
+      "custom": {
+        "beadsCreated": 5,
+        "agentsSpawned": 14
+      }
+    },
+    {
+      "role": "specialist",
+      "agentCount": 6,
+      "avgDurationMinutes": 5.810063333333334,
+      "completionRatio": 1,
+      "messagesReceived": 44,
+      "messagesSent": 6,
+      "progressUpdates": 11,
+      "custom": {
+        "blockersSent": 0
+      }
+    },
+    {
+      "role": "reviewer",
+      "agentCount": 2,
+      "avgDurationMinutes": 17.844216666666664,
+      "completionRatio": 4,
+      "messagesReceived": 8,
+      "messagesSent": 9,
+      "progressUpdates": 11,
+      "custom": {
+        "reviewsCompleted": 8
+      }
+    },
+    {
+      "role": "explorer",
+      "agentCount": 2,
+      "avgDurationMinutes": 6.001433333333333,
+      "completionRatio": 1,
+      "messagesReceived": 12,
+      "messagesSent": 2,
+      "progressUpdates": 4,
+      "custom": {}
+    },
+    {
+      "role": "witness",
+      "agentCount": 2,
+      "avgDurationMinutes": 19.754891666666666,
+      "completionRatio": 0.5,
+      "messagesReceived": 14,
+      "messagesSent": 8,
+      "progressUpdates": 9,
+      "custom": {
+        "agentsMonitored": 0
+      }
+    },
+    {
+      "role": "refinery",
+      "agentCount": 1,
+      "avgDurationMinutes": 28.332683333333332,
+      "completionRatio": 6,
+      "messagesReceived": 8,
+      "messagesSent": 9,
+      "progressUpdates": 7,
+      "custom": {}
+    },
+    {
+      "role": "deacon",
+      "agentCount": 1,
+      "avgDurationMinutes": 32.9816,
+      "completionRatio": 1,
+      "messagesReceived": 6,
+      "messagesSent": 15,
+      "progressUpdates": 10,
+      "custom": {}
+    }
+  ],
+  "timeline": [
+    {
+      "timestamp": "2026-01-12T18:15:35.567Z",
+      "elapsedSeconds": 0,
+      "event": "Agent spawned: mayor (mayor)",
+      "agent": "mayor"
+    },
+    {
+      "timestamp": "2026-01-12T18:19:08.786Z",
+      "elapsedSeconds": 213.219,
+      "event": "Bead created: BEAD-001",
+      "beadId": "BEAD-001",
+      "details": "Homepage with hero section and feature cards"
+    },
+    {
+      "timestamp": "2026-01-12T18:19:09.419Z",
+      "elapsedSeconds": 213.852,
+      "event": "Bead created: BEAD-002",
+      "beadId": "BEAD-002",
+      "details": "Docs pages with sidebar navigation"
+    },
+    {
+      "timestamp": "2026-01-12T18:19:10.079Z",
+      "elapsedSeconds": 214.512,
+      "event": "Bead created: BEAD-003",
+      "beadId": "BEAD-003",
+      "details": "Search with Ctrl+K shortcut"
+    },
+    {
+      "timestamp": "2026-01-12T18:19:11.247Z",
+      "elapsedSeconds": 215.68,
+      "event": "Bead created: BEAD-004",
+      "beadId": "BEAD-004",
+      "details": "Theme toggle (dark/light mode)"
+    },
+    {
+      "timestamp": "2026-01-12T18:19:11.820Z",
+      "elapsedSeconds": 216.253,
+      "event": "Bead created: BEAD-005",
+      "beadId": "BEAD-005",
+      "details": "API reference section"
+    },
+    {
+      "timestamp": "2026-01-12T18:20:18.666Z",
+      "elapsedSeconds": 283.099,
+      "event": "Agent spawned: scout (explorer)",
+      "agent": "scout"
+    },
+    {
+      "timestamp": "2026-01-12T18:20:19.853Z",
+      "elapsedSeconds": 284.286,
+      "event": "Agent spawned: deacon (deacon)",
+      "agent": "deacon"
+    },
+    {
+      "timestamp": "2026-01-12T18:20:20.642Z",
+      "elapsedSeconds": 285.075,
+      "event": "Agent spawned: refinery (refinery)",
+      "agent": "refinery"
+    },
+    {
+      "timestamp": "2026-01-12T18:20:21.658Z",
+      "elapsedSeconds": 286.091,
+      "event": "Agent spawned: reviewer (reviewer)",
+      "agent": "reviewer"
+    },
+    {
+      "timestamp": "2026-01-12T18:20:56.852Z",
+      "elapsedSeconds": 321.285,
+      "event": "Agent spawned: frontend-witness (witness)",
+      "agent": "frontend-witness"
+    },
+    {
+      "timestamp": "2026-01-12T18:20:57.544Z",
+      "elapsedSeconds": 321.977,
+      "event": "Agent spawned: styling-witness (witness)",
+      "agent": "styling-witness"
+    },
+    {
+      "timestamp": "2026-01-12T18:20:58.282Z",
+      "elapsedSeconds": 322.715,
+      "event": "Agent spawned: homepage-dev (specialist)",
+      "agent": "homepage-dev"
+    },
+    {
+      "timestamp": "2026-01-12T18:20:59.160Z",
+      "elapsedSeconds": 323.593,
+      "event": "Agent spawned: docs-dev (specialist)",
+      "agent": "docs-dev"
+    },
+    {
+      "timestamp": "2026-01-12T18:21:00.134Z",
+      "elapsedSeconds": 324.567,
+      "event": "Agent spawned: search-dev (specialist)",
+      "agent": "search-dev"
+    },
+    {
+      "timestamp": "2026-01-12T18:21:01.195Z",
+      "elapsedSeconds": 325.628,
+      "event": "Agent spawned: theme-dev (specialist)",
+      "agent": "theme-dev"
+    },
+    {
+      "timestamp": "2026-01-12T18:21:03.212Z",
+      "elapsedSeconds": 327.645,
+      "event": "Agent spawned: api-ref-dev (specialist)",
+      "agent": "api-ref-dev"
+    },
+    {
+      "timestamp": "2026-01-12T18:21:18.164Z",
+      "elapsedSeconds": 342.597,
+      "event": "Agent spawned: test-agent (explorer)",
+      "agent": "test-agent"
+    },
+    {
+      "timestamp": "2026-01-12T18:21:27.886Z",
+      "elapsedSeconds": 352.319,
+      "event": "Completion: scout",
+      "agent": "scout",
+      "details": "RECON COMPLETE: eval-docportal codebase analysis\n\n## Tech Stack\n- **React** 19.2.0 (latest)\n- **Vite"
+    },
+    {
+      "timestamp": "2026-01-12T18:24:21.720Z",
+      "elapsedSeconds": 526.153,
+      "event": "Completion: theme-dev",
+      "agent": "theme-dev",
+      "details": "Task complete: BEAD-004 Theme toggle implemented.\n\nFiles created:\n- src/context/ThemeContext.tsx - P"
+    },
+    {
+      "timestamp": "2026-01-12T18:24:28.829Z",
+      "elapsedSeconds": 533.262,
+      "event": "BLOCKER: merge-queue",
+      "agent": "merge-queue",
+      "details": "Your merge request \"Add API reference section with endpoint listings\" has file conflicts with: Add t"
+    },
+    {
+      "timestamp": "2026-01-12T18:24:37.458Z",
+      "elapsedSeconds": 541.891,
+      "event": "BLOCKER: merge-queue",
+      "agent": "merge-queue",
+      "details": "Your merge request \"Add documentation pages with collapsible sidebar navigation\" has file conflicts "
+    },
+    {
+      "timestamp": "2026-01-12T18:24:40.046Z",
+      "elapsedSeconds": 544.479,
+      "event": "Completion: api-ref-dev",
+      "agent": "api-ref-dev",
+      "details": "Task complete: API reference section built (BEAD-005).\n\nDeliverables:\n- src/data/api/endpoints.ts - "
+    },
+    {
+      "timestamp": "2026-01-12T18:24:48.774Z",
+      "elapsedSeconds": 553.207,
+      "event": "Completion: docs-dev",
+      "agent": "docs-dev",
+      "details": "BEAD-002 complete: Documentation pages with collapsible sidebar navigation. Created: src/components/"
+    },
+    {
+      "timestamp": "2026-01-12T18:26:15.008Z",
+      "elapsedSeconds": 639.441,
+      "event": "BLOCKER: merge-queue",
+      "agent": "merge-queue",
+      "details": "Your merge request \"Add homepage with hero section and feature cards\" has file conflicts with: Add t"
+    },
+    {
+      "timestamp": "2026-01-12T18:27:00.866Z",
+      "elapsedSeconds": 685.299,
+      "event": "Completion: homepage-dev",
+      "agent": "homepage-dev",
+      "details": "Homepage implementation complete (MR-004). Created Hero component with gradient background and CTA b"
+    },
+    {
+      "timestamp": "2026-01-12T18:27:01.669Z",
+      "elapsedSeconds": 686.102,
+      "event": "Completion: homepage-dev",
+      "agent": "homepage-dev",
+      "details": "Task complete: Homepage with hero section and feature cards. Files: src/components/Hero.tsx, src/com"
+    },
+    {
+      "timestamp": "2026-01-12T18:27:28.930Z",
+      "elapsedSeconds": 713.363,
+      "event": "Completion: reviewer",
+      "agent": "reviewer",
+      "details": "MR-001 APPROVED. Clean theme toggle implementation. Build and lint pass. Ready for merge."
+    },
+    {
+      "timestamp": "2026-01-12T18:28:39.069Z",
+      "elapsedSeconds": 783.502,
+      "event": "Completion: refinery",
+      "agent": "refinery",
+      "details": "MERGED: MR-001 (theme-dev) - Theme toggle with dark/light mode. Queue: MR-002, MR-003, MR-004 now in"
+    },
+    {
+      "timestamp": "2026-01-12T18:30:37.977Z",
+      "elapsedSeconds": 902.41,
+      "event": "Completion: reviewer",
+      "agent": "reviewer",
+      "details": "MR-002 APPROVED. Clean API reference implementation. Build passes. Ready for merge."
+    },
+    {
+      "timestamp": "2026-01-12T18:30:52.243Z",
+      "elapsedSeconds": 916.676,
+      "event": "BLOCKER: frontend-witness",
+      "agent": "frontend-witness",
+      "details": "ESCALATION: search-dev communication gap. Agent is actively working (files modified recently in work"
+    },
+    {
+      "timestamp": "2026-01-12T18:31:04.799Z",
+      "elapsedSeconds": 929.232,
+      "event": "Bead completed: BEAD-001",
+      "beadId": "BEAD-001",
+      "agent": "system"
+    },
+    {
+      "timestamp": "2026-01-12T18:31:24.567Z",
+      "elapsedSeconds": 949,
+      "event": "BLOCKER: merge-queue",
+      "agent": "merge-queue",
+      "details": "Your merge request \"Homepage with hero section and feature cards\" has file conflicts with: Add docum"
+    },
+    {
+      "timestamp": "2026-01-12T18:31:26.877Z",
+      "elapsedSeconds": 951.31,
+      "event": "Completion: refinery",
+      "agent": "refinery",
+      "details": "MERGED: MR-002 (api-ref-dev) - API reference section with endpoint listings. 2 merged total. MR-003,"
+    },
+    {
+      "timestamp": "2026-01-12T18:31:37.135Z",
+      "elapsedSeconds": 961.568,
+      "event": "Completion: test-agent",
+      "agent": "test-agent",
+      "details": "Task complete: BEAD-001 Homepage with hero section and feature cards. Built Hero component with grad"
+    },
+    {
+      "timestamp": "2026-01-12T18:31:38.950Z",
+      "elapsedSeconds": 963.383,
+      "event": "Completion: reviewer",
+      "agent": "reviewer",
+      "details": "MR-003 APPROVED. Clean docs with sidebar navigation. Build passes. Ready for merge."
+    },
+    {
+      "timestamp": "2026-01-12T18:32:59.347Z",
+      "elapsedSeconds": 1043.78,
+      "event": "Completion: refinery",
+      "agent": "refinery",
+      "details": "MERGED: MR-003 (docs-dev) - Documentation pages with sidebar navigation. 3 merged total. MR-004 awai"
+    },
+    {
+      "timestamp": "2026-01-12T18:33:26.663Z",
+      "elapsedSeconds": 1071.096,
+      "event": "BLOCKER: merge-queue",
+      "agent": "merge-queue",
+      "details": "Your merge request \"Add search modal with Ctrl+K shortcut\" has file conflicts with: Add homepage wit"
+    },
+    {
+      "timestamp": "2026-01-12T18:33:54.726Z",
+      "elapsedSeconds": 1099.159,
+      "event": "Completion: reviewer",
+      "agent": "reviewer",
+      "details": "MR-004 APPROVED. Excellent homepage with hero and feature cards. Build passes. Ready for merge."
+    },
+    {
+      "timestamp": "2026-01-12T18:34:11.865Z",
+      "elapsedSeconds": 1116.298,
+      "event": "Completion: search-dev",
+      "agent": "search-dev",
+      "details": "Task complete: Implemented search modal with Ctrl+K keyboard shortcut (BEAD-003). Files modified: sr"
+    },
+    {
+      "timestamp": "2026-01-12T18:35:18.976Z",
+      "elapsedSeconds": 1183.409,
+      "event": "Completion: refinery",
+      "agent": "refinery",
+      "details": "MERGED: MR-004 (homepage-dev) - Homepage with hero and feature cards. 4 merged total. MR-005, MR-006"
+    },
+    {
+      "timestamp": "2026-01-12T18:40:57.635Z",
+      "elapsedSeconds": 1522.068,
+      "event": "Completion: reviewer",
+      "agent": "reviewer",
+      "details": "MR-006 APPROVED. Excellent search modal with Ctrl+K and keyboard navigation. Build passes. Ready for"
+    },
+    {
+      "timestamp": "2026-01-12T18:42:20.454Z",
+      "elapsedSeconds": 1604.887,
+      "event": "Completion: frontend-witness",
+      "agent": "frontend-witness",
+      "details": "MONITORING COMPLETE: All 3 frontend specialists delivered successfully!\n\n- homepage-dev: BEAD-001 (H"
+    },
+    {
+      "timestamp": "2026-01-12T18:42:37.221Z",
+      "elapsedSeconds": 1621.654,
+      "event": "Completion: refinery",
+      "agent": "refinery",
+      "details": "MERGED: MR-006 (search-dev) - Search modal with Ctrl+K. All 5 feature beads merged. Only MR-005 rema"
+    },
+    {
+      "timestamp": "2026-01-12T18:43:25.612Z",
+      "elapsedSeconds": 1670.045,
+      "event": "Completion: reviewer",
+      "agent": "reviewer",
+      "details": "REVIEW SUMMARY: Completed review of 6 MRs. APPROVED: MR-001 (theme), MR-002 (api-ref), MR-003 (docs)"
+    },
+    {
+      "timestamp": "2026-01-12T18:45:21.031Z",
+      "elapsedSeconds": 1785.464,
+      "event": "Completion: deacon",
+      "agent": "deacon",
+      "details": "🎉 DOCPORTAL FEATURE-COMPLETE: All 5 core features have been merged to main:\n1. Homepage with hero s"
+    },
+    {
+      "timestamp": "2026-01-12T18:45:24.647Z",
+      "elapsedSeconds": 1789.08,
+      "event": "Completion: refinery",
+      "agent": "refinery",
+      "details": "REFINERY SUMMARY: All 5 feature MRs successfully merged to main. MR-001 (theme), MR-002 (api-ref), M"
+    },
+    {
+      "timestamp": "2026-01-12T18:51:11.183Z",
+      "elapsedSeconds": 2135.616,
+      "event": "Completion: reviewer",
+      "agent": "reviewer",
+      "details": "REVIEW PHASE COMPLETE: All 5 core feature MRs have been reviewed, approved, and merged. MR-001 (them"
+    },
+    {
+      "timestamp": "2026-01-12T18:52:09.150Z",
+      "elapsedSeconds": 2193.583,
+      "event": "Bead completed: BEAD-002",
+      "beadId": "BEAD-002",
+      "agent": "system"
+    },
+    {
+      "timestamp": "2026-01-12T18:52:09.980Z",
+      "elapsedSeconds": 2194.413,
+      "event": "Bead completed: BEAD-003",
+      "beadId": "BEAD-003",
+      "agent": "system"
+    },
+    {
+      "timestamp": "2026-01-12T18:52:10.710Z",
+      "elapsedSeconds": 2195.143,
+      "event": "Bead completed: BEAD-004",
+      "beadId": "BEAD-004",
+      "agent": "system"
+    },
+    {
+      "timestamp": "2026-01-12T18:52:11.459Z",
+      "elapsedSeconds": 2195.892,
+      "event": "Bead completed: BEAD-005",
+      "beadId": "BEAD-005",
+      "agent": "system"
+    },
+    {
+      "timestamp": "2026-01-12T18:53:28.211Z",
+      "elapsedSeconds": 2272.644,
+      "event": "Agent spawned: build-verify (specialist)",
+      "agent": "build-verify"
+    },
+    {
+      "timestamp": "2026-01-12T18:53:59.952Z",
+      "elapsedSeconds": 2304.385,
+      "event": "Agent spawned: web-tester (reviewer)",
+      "agent": "web-tester"
+    },
+    {
+      "timestamp": "2026-01-12T18:55:47.235Z",
+      "elapsedSeconds": 2411.668,
+      "event": "Completion: reviewer",
+      "agent": "reviewer",
+      "details": "ALL BEADS COMPLETE: All 5 feature beads are now marked as DONE. Homepage (BEAD-001), Docs (BEAD-002)"
+    }
+  ],
+  "strengths": [
+    "High bead completion (100.0%)",
+    "Good first-pass success (90.9%)",
+    "Low blocker rate - agents worked smoothly",
+    "Good role diversity (7 roles used)"
+  ],
+  "weaknesses": [],
+  "rawDataSummary": {
+    "beadCount": 5,
+    "agentCount": 15,
+    "progressEntryCount": 54,
+    "messageCount": 117,
+    "mergeRequestCount": 6,
+    "terminalLogCount": 0
+  }
+}

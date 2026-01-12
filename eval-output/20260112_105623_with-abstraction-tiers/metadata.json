@@ -1,0 +1,7 @@
+{
+  "workspaceId": "bcacbcf3-6efd-4256-9a38-499724a403eb",
+  "runLabel": "with-abstraction-tiers",
+  "collectedAt": "2026-01-12T10:56:23-08:00",
+  "apiBase": "http://localhost:3001",
+  "outputDir": "./eval-output/20260112_105623_with-abstraction-tiers"
+}

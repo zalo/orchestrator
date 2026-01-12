@@ -1,0 +1,7 @@
+{
+  "workspaceId": "e931fec4-ef0f-44fb-b2a9-c779854087e7",
+  "runLabel": "current-run",
+  "collectedAt": "2026-01-12T12:55:48-08:00",
+  "apiBase": "http://localhost:3001",
+  "outputDir": "./eval-output/20260112_125548_current-run"
+}
