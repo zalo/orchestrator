@@ -1130,6 +1130,39 @@ curl -X PATCH ${apiBase}/api/merge-queue/MR-001 \\
 5. System notifies other agents to rebase
 6. Next MR in queue proceeds
 
+## CROSS-WORKSPACE COORDINATION (Nudging Other Mayors)
+
+As a mayor, you can coordinate with mayors in OTHER workspaces. This is useful when:
+- You need another workspace's mayor to review something
+- A dependency exists between workspaces
+- You want to escalate an issue that spans workspaces
+
+### Nudge Another Mayor
+Use the messages API with a different workspace ID to send messages to other mayors:
+
+\`\`\`bash
+# Send a message to another workspace's mayor
+curl -X POST ${apiBase}/api/messages \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "<TARGET_WORKSPACE_ID>",
+    "from": "mayor@\${workspace.name}",
+    "to": "mayor",
+    "content": "Need your review on [topic]. Can you check [specific item]?",
+    "type": "action_required"
+  }'
+
+# Check for messages from other mayors
+curl "${apiBase}/api/messages?workspaceId=\${workspace.id}&to=mayor&unread=true"
+# Look for messages where 'from' contains '@' indicating cross-workspace origin
+\`\`\`
+
+### When to Nudge Other Mayors
+- When a sub-agent's work affects another workspace
+- When you need expertise from a different project context
+- When coordinating releases or deployments across projects
+- When an issue requires escalation beyond your workspace
+
 ## YOUR IDENTITY
 Agent ID: ${mayorId}
 Agent Name: mayor
@@ -1433,6 +1466,50 @@ Always message the agent when you complete a review:
 - If approved: Send \`completion\` message confirming approval
 - If changes requested: Send \`action_required\` message with specific feedback
 ` : ''}
+${agent.role === 'deacon' ? `## DEACON ROLE: Mayor Activity Monitor
+
+As a deacon, your PRIMARY responsibility is keeping the mayor active and responsive. You are the daemon patrol.
+
+### CRITICAL: Monitor Mayor for Idle State
+
+You MUST continuously monitor for unread messages to the mayor. If the mayor has unread messages (especially completions or blockers) for 3+ minutes, NUDGE THE MAYOR.
+
+### How to Check for Unread Mayor Messages
+\\\`\\\`\\\`bash
+# Check for unread messages to mayor
+curl "${apiBase}/api/messages?workspaceId=${workspace.id}&to=mayor&unread=true"
+
+# If results are non-empty and older than 3 minutes, nudge!
+\\\`\\\`\\\`
+
+### How to Nudge the Mayor (Reliable Pattern)
+
+Use tmux send-keys with the shared socket. ALWAYS use literal mode (-l) and send Enter separately:
+
+\\\`\\\`\\\`bash
+# Step 1: Send the message text in literal mode
+tmux -S /tmp/orchestrator-tmux.sock send-keys -t ${getTmuxSessionName(workspace, 'mayor')} -l "You have unread messages. An agent completed their task and needs your review. Please check: curl \\"${apiBase}/api/messages?workspaceId=${workspace.id}&to=mayor&unread=true\\""
+
+# Step 2: Wait briefly, then send Enter
+sleep 0.5 && tmux -S /tmp/orchestrator-tmux.sock send-keys -t ${getTmuxSessionName(workspace, 'mayor')} Enter
+\\\`\\\`\\\`
+
+### IMPORTANT: Never combine message and Enter
+- ALWAYS use \`-l\` (literal mode) for the message text
+- ALWAYS send Enter as a separate command
+- NEVER use \`C-m\` - it doesn't work reliably
+
+### When to Nudge
+1. Completion messages unread for 3+ minutes (agent finished, waiting for mayor)
+2. Blocker messages unread for 3+ minutes (agent stuck, needs help)
+3. Action required messages unread for 5+ minutes (work assignment pending)
+
+### Your Patrol Loop
+1. Check for unread mayor messages every 2-3 minutes
+2. If urgent messages found (completion/blocker) → nudge immediately
+3. Log your patrol activity via progress API
+4. If mayor remains unresponsive after multiple nudges → escalate to user
+` : ''}
 ${agent.role === 'refinery' ? `## REFINERY ROLE: Merge Queue Processor
 
 As the refinery, you process the merge queue sequentially. **You cannot merge unless the review gate passes.**
@@ -1467,6 +1544,30 @@ curl -X PATCH ${apiBase}/api/merge-queue/MR-001 \\\\
 
 # You can see why merge is blocked and notify the relevant agents
 \\\`\\\`\\\`
+
+### Nudge Mayor When Blocked
+
+When MRs are ready for merge but blocked (waiting on mayor approval or review), you MUST nudge the mayor:
+
+\\\`\\\`\\\`bash
+# Step 1: Send the nudge message in literal mode
+tmux -S /tmp/orchestrator-tmux.sock send-keys -t ${getTmuxSessionName(workspace, 'mayor')} -l "Merge queue has items waiting for approval. MR ready for review. Please check: curl \\"${apiBase}/api/merge-queue?workspaceId=${workspace.id}\\""
+
+# Step 2: Wait briefly, then send Enter
+sleep 0.5 && tmux -S /tmp/orchestrator-tmux.sock send-keys -t ${getTmuxSessionName(workspace, 'mayor')} Enter
+\\\`\\\`\\\`
+
+### When to Nudge
+1. MR has been in queue for 5+ minutes without review
+2. MR is approved but mayor hasn't initiated merge
+3. Multiple MRs are piling up in the queue
+4. Build failed and mayor needs to be notified
+
+### Escalation Protocol
+If mayor remains unresponsive after 2-3 nudges:
+1. Send a blocker message via the API
+2. Log the situation in progress
+3. Continue processing what you can
 
 ### DO NOT bypass the gate
 The \`forceBypassGate: true\` option exists but should NOT be used unless explicitly authorized by the mayor. Quality gates exist for a reason.
