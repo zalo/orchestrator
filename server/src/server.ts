@@ -2876,17 +2876,29 @@ app.patch('/api/merge-queue/:id', (req: Request, res: Response) => {
   const { status, position, reviewStatus, reviewedBy, reviewComments, buildStatus, buildOutput, forceBypassGate } = req.body;
   const mrId = req.params.id;
 
-  // Find MR across all workspaces
+  // Check for workspaceId to scope the search
+  const targetWorkspaceId = (req.query.workspaceId as string) || req.body?.workspaceId;
+
   let foundWorkspaceId: string | null = null;
   let queue: MergeRequest[] = [];
   let mrIndex = -1;
 
-  for (const ws of workspaces) {
-    queue = getMergeQueue(ws.id);
+  if (targetWorkspaceId) {
+    // Search only the specified workspace
+    queue = getMergeQueue(targetWorkspaceId);
     mrIndex = queue.findIndex(mr => mr.id === mrId);
     if (mrIndex !== -1) {
-      foundWorkspaceId = ws.id;
-      break;
+      foundWorkspaceId = targetWorkspaceId;
+    }
+  } else {
+    // Fall back to searching all workspaces (backward compatible)
+    for (const ws of workspaces) {
+      queue = getMergeQueue(ws.id);
+      mrIndex = queue.findIndex(mr => mr.id === mrId);
+      if (mrIndex !== -1) {
+        foundWorkspaceId = ws.id;
+        break;
+      }
     }
   }
 
@@ -3011,17 +3023,29 @@ app.patch('/api/merge-queue/:id', (req: Request, res: Response) => {
 app.delete('/api/merge-queue/:id', (req: Request, res: Response) => {
   const mrId = req.params.id;
 
-  // Find MR across all workspaces
+  // Check for workspaceId to scope the search
+  const targetWorkspaceId = req.query.workspaceId as string;
+
   let foundWorkspaceId: string | null = null;
   let queue: MergeRequest[] = [];
   let mrIndex = -1;
 
-  for (const ws of workspaces) {
-    queue = getMergeQueue(ws.id);
+  if (targetWorkspaceId) {
+    // Search only the specified workspace
+    queue = getMergeQueue(targetWorkspaceId);
     mrIndex = queue.findIndex(mr => mr.id === mrId);
     if (mrIndex !== -1) {
-      foundWorkspaceId = ws.id;
-      break;
+      foundWorkspaceId = targetWorkspaceId;
+    }
+  } else {
+    // Fall back to searching all workspaces (backward compatible)
+    for (const ws of workspaces) {
+      queue = getMergeQueue(ws.id);
+      mrIndex = queue.findIndex(mr => mr.id === mrId);
+      if (mrIndex !== -1) {
+        foundWorkspaceId = ws.id;
+        break;
+      }
     }
   }
 
