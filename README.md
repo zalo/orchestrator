@@ -9,7 +9,7 @@ A web interface for managing multi-agent Claude Code workflows, based on the Age
 | **Beads (Work Items)** | ✅ Full | ID, status, priority, dependencies, assignee, audit trail |
 | **Git Worktrees** | ✅ Full | Auto-created per sub-agent, isolated branches |
 | **Merge Queue** | ✅ Full | Sequential merge, rebase notifications, conflict detection |
-| **Agent Roles** | ✅ Full | Mayor (Opus), Specialist, Reviewer, Explorer |
+| **Agent Roles** | ✅ Full | 7 roles: Mayor, Specialist, Reviewer, Explorer, Witness, Refinery, Deacon |
 | **Model Allocation** | ✅ Full | Opus/Sonnet/Haiku by cognitive demand |
 | **CLAUDE.md** | ✅ Full | Project conventions, build commands, architecture |
 | **Skills System** | ✅ Full | On-demand knowledge in `.claude/skills/` |
@@ -17,9 +17,10 @@ A web interface for managing multi-agent Claude Code workflows, based on the Age
 | **Inter-Agent Messaging** | ✅ Full | Typed messages (info, action_required, completion, blocker) |
 | **Progress Coordination** | ✅ Full | Shared log with status, completed, next, artifacts |
 | **Test Verification** | ✅ Full | Required test pass before bead completion |
-| **Hierarchical Delegation** | ⚠️ Partial | Flat sub-agents only (no nested spawning) |
+| **Hierarchical Delegation** | ✅ Full | parentAgentId, canSpawnAgents, nested agent spawning |
+| **Propulsion Principle** | ✅ Full | Execute immediately on spawn, no waiting |
+| **Capability Ledger** | ✅ Full | Audit trail builds track record over time |
 | **File Ownership** | ⚠️ Partial | Informational tracking (worktrees provide isolation) |
-| **Gas Town 7 Roles** | ❌ None | Using simplified 4-role model instead |
 | **Context Compaction** | ❌ None | Relies on sub-agent delegation |
 | **Beads CLI (`bd`)** | ❌ None | REST API only (no CLI integration) |
 

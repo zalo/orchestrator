@@ -42,17 +42,28 @@ export interface AuditEntry {
   details?: Record<string, unknown>;
 }
 
+// Agent roles following Gas Town model
+export type AgentRole = 'mayor' | 'specialist' | 'reviewer' | 'explorer' | 'witness' | 'refinery' | 'deacon';
+
 export interface Agent {
   id: string;
   name: string;
-  role: 'mayor' | 'specialist' | 'reviewer' | 'explorer';
+  role: AgentRole;
   model: 'opus' | 'sonnet' | 'haiku';
   status: 'idle' | 'working' | 'blocked' | 'offline' | 'starting';
   currentTask: string | null;
   worktree: string | null;
+  worktreeBranch: string | null;
+  ownedPaths: string[];
   tmuxSession: string | null;
+  pid: number | null;
   lastSeen: string;
   created: string;
+  workspaceId?: string;
+  // Hierarchical delegation support
+  parentAgentId: string | null;
+  canSpawnAgents: boolean;
+  spawnedAgentIds: string[];
 }
 
 export interface ProgressEntry {

@@ -67,6 +67,35 @@ Every worker should function independently. The system should work:
 - With no orchestration (single Claude Code session)
 - With or without tmux/terminal multiplexers
 
+### The Propulsion Principle (GUPP)
+
+**Gas Town Universal Propulsion Principle**: When an agent finds work, they EXECUTE. No confirmation. No waiting.
+
+The system is a steam engine. Every agent is a piston, flywheel, or gearbox. The failure mode we're preventing:
+1. Agent starts
+2. Agent announces itself with lengthy preamble
+3. Agent waits for "go ahead"
+4. Work sits idle. Throughput drops to zero.
+
+**Startup behavior for all agents:**
+1. Check for hooked/assigned work
+2. If work exists → EXECUTE immediately
+3. If nothing assigned → Check messages, then wait
+
+This principle applies recursively: sub-agents spawned by witnesses should also execute immediately.
+
+### The Capability Ledger
+
+Every completion is recorded. Every handoff is logged. Every bead closed becomes part of a permanent audit trail.
+
+**Why this matters:**
+1. **Work is visible** - The beads system tracks what actually happened, not claims
+2. **Quality accumulates** - Consistent good work builds trajectory over time
+3. **Every completion is evidence** - Each success proves autonomous execution works at scale
+4. **Reputation is earned** - The ledger is each agent's professional record
+
+This isn't just about the current task—it's about building demonstrated capability over time.
+
 ---
 
 ## Agent Roles & Hierarchy
@@ -399,9 +428,34 @@ Designate an agent or process to manage merges:
 
 ## Hierarchical Delegation
 
-### Current Limitations
+### Enabling True Hierarchy
 
-Claude Code's native subagent system is flat—subagents cannot spawn other subagents. For true hierarchy, you need external orchestration.
+Claude Code's native subagent system is flat—subagents cannot spawn other subagents. However, with external orchestration (like Mayor Orchestrator), true hierarchy is possible.
+
+**Key enablers:**
+- `parentAgentId` field tracks who spawned whom
+- `canSpawnAgents` permission controls delegation rights
+- Sub-agents report to their parent, not directly to mayor
+- Parent agents handle completions and blockers from their children
+
+**Roles with spawn permission:**
+- **Mayor** - Always can spawn
+- **Witness** - Monitors workers, can spawn specialists
+- **Deacon** - Keeps agents alive, can spawn as needed
+
+**Example: Witness spawning a specialist:**
+```bash
+curl -X POST http://localhost:3001/api/agents/spawn \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspaceId": "...",
+    "name": "auth-specialist",
+    "role": "specialist",
+    "model": "sonnet",
+    "parentAgentId": "<witness-id>",
+    "prompt": "Implement OAuth authentication..."
+  }'
+```
 
 ### The Manager-Worker Pattern
 
@@ -647,6 +701,24 @@ Long-running tasks exceed context limits. Tool-heavy workflows consume tokens ra
 ---
 
 ## Communication Protocols
+
+### The Lifeblood of Multi-Agent Systems
+
+**Message passing is critical.** Without it, agents work in isolation and coordination fails.
+
+| Message Type | When to Send | Priority |
+|-------------|--------------|----------|
+| **info** | Status updates, FYI notifications | Low |
+| **action_required** | Work assignments, decisions needed | High |
+| **completion** | Task finished, ready for review | High |
+| **blocker** | Stuck, need help immediately | Critical |
+
+**Message Protocol (MANDATORY):**
+1. **On spawn**: Parent sends initial work assignment immediately
+2. **On completion**: Agent MUST message completion to parent/mayor
+3. **On blocker**: Agent MUST message blocker immediately (don't wait!)
+4. **On progress**: Periodic status messages keep coordination smooth
+5. **Check inbox**: Every agent should check for messages regularly
 
 ### Inter-Agent Messaging
 

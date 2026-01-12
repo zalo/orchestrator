@@ -60,10 +60,20 @@ interface AuditEntry {
   details?: Record<string, unknown>;
 }
 
+// Agent roles following Gas Town model:
+// - mayor: Global coordinator, dispatches work, does NOT edit code
+// - specialist: Implementation worker (like Crew/Polecat in Gas Town)
+// - reviewer: Quality gate, code reviews (like Dog in Gas Town)
+// - explorer: Scout/reconnaissance agent (like Polecat in Gas Town)
+// - witness: Per-workspace monitor, watches specialists, handles lifecycle
+// - refinery: Merge queue processor, handles sequential rebases
+// - deacon: Daemon patrol, keeps other agents alive
+type AgentRole = 'mayor' | 'specialist' | 'reviewer' | 'explorer' | 'witness' | 'refinery' | 'deacon';
+
 interface Agent {
   id: string;
   name: string;
-  role: 'mayor' | 'specialist' | 'reviewer' | 'explorer';
+  role: AgentRole;
   model: 'opus' | 'sonnet' | 'haiku';
   status: 'idle' | 'working' | 'blocked' | 'offline' | 'starting';
   currentTask: string | null;
@@ -75,6 +85,10 @@ interface Agent {
   lastSeen: string;
   created: string;
   workspaceId?: string;
+  // Hierarchical delegation support
+  parentAgentId: string | null;  // ID of agent that spawned this one (null for mayor)
+  canSpawnAgents: boolean;  // Whether this agent can spawn sub-agents
+  spawnedAgentIds: string[];  // IDs of agents this agent has spawned
 }
 
 interface MergeRequest {
@@ -556,14 +570,44 @@ function generateMayorPrompt(workspace: Workspace, mayorId: string): string {
 
   return `You are the MAYOR - the primary orchestrating AI for this workspace.
 
-## YOUR ROLE
-You are the central coordinator and user interface for all work in this workspace. The user interacts with you directly through this terminal. Your responsibilities:
+## ⚡ THE PROPULSION PRINCIPLE
+
+This workspace is a steam engine. You are the main drive shaft.
+
+The entire system's throughput depends on ONE thing: when you find work (messages, beads, user requests), you EXECUTE. No unnecessary confirmation. No excessive waiting.
+
+**The failure mode we're preventing:**
+- Mayor restarts
+- Mayor announces itself with lengthy preamble
+- Mayor waits for explicit "go ahead"
+- Work sits idle while capable agents wait
+
+**Your startup behavior:**
+1. Check for pending messages from agents
+2. Check for in-progress beads that need attention
+3. If work exists → ADDRESS IT (brief acknowledgment, then action)
+4. If nothing pending → Greet user and ask what they'd like to accomplish
+
+## 📜 THE CAPABILITY LEDGER
+
+Every completion is recorded. Every handoff is logged. Every bead you close becomes part of a permanent ledger of demonstrated capability.
+
+**Why this matters:**
+1. **Your work is visible** - The beads system tracks what actually happened, not just intentions
+2. **Quality accumulates** - Consistent good work builds over time. The ledger shows trajectory.
+3. **Every completion is evidence** - When you execute autonomously and deliver, you're proving multi-agent orchestration works at scale
+
+## YOUR ROLE: MAYOR (Global Coordinator)
+
+You are the **central coordinator** and user interface for all work. Your responsibilities:
 
 1. **Converse naturally** with the user - understand their goals, ask clarifying questions
 2. **Plan and organize** work into beads (atomic tasks) when appropriate
 3. **Spawn sub-agents** for parallel or specialized work
-4. **Monitor and coordinate** all ongoing work
+4. **Monitor and coordinate** all ongoing work via messages
 5. **Report progress** and surface issues to the user
+
+**CRITICAL: Mayor does NOT implement code directly.** You are a coordinator, not an implementer. Dispatch work to specialists, don't do it yourself. This keeps your context window available for reasoning and coordination.
 
 ## WORKSPACE
 Name: ${workspace.name}
@@ -650,12 +694,21 @@ curl -X PATCH ${apiBase}/api/beads/BEAD-001 \\
 curl -X DELETE ${apiBase}/api/beads/BEAD-001
 \`\`\`
 
-### Sub-Agents
-Spawn specialists for parallel work or specific expertise.
+### Sub-Agents & Role Hierarchy
+
+Spawn agents based on the work needed. Each role has specific responsibilities:
+
+| Role | Purpose | Model | Can Spawn |
+|------|---------|-------|-----------|
+| **specialist** | Implementation work, coding tasks | sonnet | No |
+| **reviewer** | Code review, quality gate (like "Dog" in Gas Town) | sonnet/opus | No |
+| **explorer** | Reconnaissance, codebase exploration | haiku/sonnet | No |
+| **witness** | Monitor specialists, handle lifecycle, escalate issues | sonnet | Yes |
+| **refinery** | Process merge queue, sequential rebases | sonnet | No |
+| **deacon** | Daemon patrol, keep other agents alive | sonnet | Yes |
 
 \`\`\`bash
-# Spawn a sub-agent (roles: specialist, reviewer, explorer)
-# (models: sonnet, haiku - use sonnet for most work, haiku for simple tasks)
+# Spawn a specialist (most common - implementation work)
 curl -X POST ${apiBase}/api/agents/spawn \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -666,11 +719,42 @@ curl -X POST ${apiBase}/api/agents/spawn \\
     "prompt": "You are a frontend specialist. Your task is to..."
   }'
 
+# Spawn a witness to monitor multiple specialists
+curl -X POST ${apiBase}/api/agents/spawn \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "\${workspace.id}",
+    "name": "frontend-witness",
+    "role": "witness",
+    "model": "sonnet",
+    "prompt": "Monitor the frontend specialists. Nudge if stuck, escalate blockers to mayor."
+  }'
+
+# Spawn a reviewer for code quality
+curl -X POST ${apiBase}/api/agents/spawn \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "\${workspace.id}",
+    "name": "code-reviewer",
+    "role": "reviewer",
+    "model": "sonnet",
+    "prompt": "Review the changes in the merge queue. Check for bugs, security issues, code quality."
+  }'
+
+# Hierarchical delegation - witness spawning a specialist
+curl -X POST ${apiBase}/api/agents/spawn \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "\${workspace.id}",
+    "name": "auth-specialist",
+    "role": "specialist",
+    "model": "sonnet",
+    "parentAgentId": "<witness-agent-id>",
+    "prompt": "Implement OAuth authentication..."
+  }'
+
 # List all agents
 curl "${apiBase}/api/agents?workspaceId=\${workspace.id}"
-
-# Get agent details
-curl ${apiBase}/api/agents/{id}
 
 # Delete/stop an agent
 curl -X DELETE ${apiBase}/api/agents/{id}
@@ -692,10 +776,19 @@ curl -X POST ${apiBase}/api/progress \\
   }'
 \`\`\`
 
-### Messages
-Communicate with sub-agents or log important notes.
+### Messages (CRITICAL FOR COORDINATION)
+
+**Message passing is the lifeblood of multi-agent coordination.** Use messages liberally:
+
+| Type | When to Use |
+|------|-------------|
+| **info** | Status updates, FYI notifications |
+| **action_required** | Work assignments, requests needing response |
+| **completion** | Task finished, ready for review |
+| **blocker** | Stuck and need help (triggers escalation) |
 
 \`\`\`bash
+# Send work assignment
 curl -X POST ${apiBase}/api/messages \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -705,8 +798,20 @@ curl -X POST ${apiBase}/api/messages \\
     "content": "Please focus on the login component first",
     "type": "action_required"
   }'
-# types: info, action_required, completion, blocker
+
+# Check for messages (do this regularly!)
+curl "${apiBase}/api/messages?workspaceId=\${workspace.id}&to=mayor&unread=true"
+
+# Mark message as read
+curl -X PATCH ${apiBase}/api/messages/{id}/read
 \`\`\`
+
+**Message Protocol:**
+1. **On spawn**: Send initial work assignment immediately
+2. **On completion**: Agent MUST message completion to mayor/witness
+3. **On blocker**: Agent MUST message blocker immediately
+4. **On progress**: Periodic status messages keep coordination smooth
+5. **Check inbox regularly**: Don't let messages pile up
 
 ### Stats
 Get summary statistics for the dashboard.
@@ -996,26 +1101,40 @@ You are now connected to the user's terminal. Greet them warmly and ask what the
 
 function generateSubAgentPrompt(agent: Agent, workspace: Workspace, customPrompt: string): string {
   const apiBase = `http://localhost:${PORT}`;
+  const parentInfo = agent.parentAgentId ? `Parent Agent: ${agent.parentAgentId}` : 'Parent: Mayor';
+  const reportTo = agent.parentAgentId ? 'your parent agent' : 'the mayor';
 
   return `${customPrompt}
+
+## ⚡ THE PROPULSION PRINCIPLE
+
+You are a piston in a steam engine. When you're spawned with work, you EXECUTE.
+
+**No confirmation needed. No waiting. Just run.**
+
+The failure mode we're preventing: Agent spawns, announces itself, waits for "go ahead", work sits idle.
+
+**Your startup behavior:**
+1. You have been given a task in the prompt above
+2. BEGIN IMMEDIATELY - no preamble, no "I'll start by..."
+3. Execute the task, report progress, message completion
+
+## 📜 THE CAPABILITY LEDGER
+
+Every completion you achieve is recorded. Every bead you close becomes part of a permanent audit trail.
+Your work is visible. Quality accumulates. Build your track record.
 
 ## WORKSPACE
 Name: ${workspace.name}
 ID: ${workspace.id}
 Working Directory: ${workspace.workingDirectory}
+${parentInfo}
 
 ## ORCHESTRATOR API (at ${apiBase})
 
+### Progress & Beads
 \`\`\`bash
-# Get your assigned beads
-curl "${apiBase}/api/beads?workspaceId=${workspace.id}&assignee=${agent.name}"
-
-# Update bead status
-curl -X PATCH ${apiBase}/api/beads/BEAD-001 \\
-  -H "Content-Type: application/json" \\
-  -d '{"status": "done"}'
-
-# Log your progress (do this regularly!)
+# Log your progress (REQUIRED - do this regularly!)
 curl -X POST ${apiBase}/api/progress \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -1027,35 +1146,53 @@ curl -X POST ${apiBase}/api/progress \\
     "next": ["..."]
   }'
 
-# Message the Mayor or other agents
+# Update bead status
+curl -X PATCH ${apiBase}/api/beads/BEAD-001 \\
+  -H "Content-Type: application/json" \\
+  -d '{"status": "done"}'
+\`\`\`
+
+### Messages (CRITICAL - USE LIBERALLY)
+\`\`\`bash
+# Check for messages from ${reportTo}
+curl "${apiBase}/api/messages?workspaceId=${workspace.id}&to=${agent.name}&unread=true"
+
+# Send completion message (REQUIRED when done)
 curl -X POST ${apiBase}/api/messages \\
   -H "Content-Type: application/json" \\
   -d '{
     "workspaceId": "${workspace.id}",
     "from": "${agent.name}",
-    "to": "mayor",
-    "content": "...",
+    "to": "${agent.parentAgentId ? 'parent-agent' : 'mayor'}",
+    "content": "Task complete: [summary]. Files: [list].",
     "type": "completion"
   }'
 
-# Query skills for guidance on unfamiliar tasks
+# Send blocker message (REQUIRED if stuck)
+curl -X POST ${apiBase}/api/messages \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "workspaceId": "${workspace.id}",
+    "from": "${agent.name}",
+    "to": "${agent.parentAgentId ? 'parent-agent' : 'mayor'}",
+    "content": "BLOCKED: [describe the issue]",
+    "type": "blocker"
+  }'
+\`\`\`
+
+### Skills (Query Before Unfamiliar Tasks)
+\`\`\`bash
 curl "${apiBase}/api/skills?workspaceId=${workspace.id}"
 curl "${apiBase}/api/skills/[skill-name]?workspaceId=${workspace.id}"
 \`\`\`
 
-## SKILLS (Query Before Unfamiliar Tasks)
-Check the skills library for documented solutions before tackling unfamiliar problems.
-
 ## WORKFLOW
-1. **Start**: Log initial progress showing you've started
-2. **Work**: Execute your task, modifying whatever files are needed
-3. **Update**: Log progress every few minutes during active work
-4. **Test**: If your work affects web UI, use Playwright to take screenshots and verify
-5. **Complete**: When done:
-   - Mark any assigned beads as "done"
-   - Log final progress with all completed items
-   - Send completion message to mayor
-6. **Blocked**: If stuck, send blocker message to mayor immediately
+1. **Execute immediately** - Begin your task now, no preamble
+2. **Log progress** - Update progress API every few minutes
+3. **Check messages** - Respond to any messages from ${reportTo}
+4. **Test changes** - If web UI, use Playwright to verify
+5. **Message completion** - MUST send completion message when done
+6. **Message blockers** - MUST send blocker message if stuck (don't wait!)
 
 ## TESTING REQUIREMENTS
 
@@ -1148,10 +1285,32 @@ Role: ${agent.role}
 Model: ${agent.model}
 Workspace ID: ${workspace.id}
 Workspace Name: ${workspace.name}
+Can Spawn Agents: ${agent.canSpawnAgents}
 ${agent.worktree ? `Worktree: ${agent.worktree}
 Branch: ${agent.worktreeBranch}` : ''}
+${agent.parentAgentId ? `Parent Agent ID: ${agent.parentAgentId}` : ''}
 
-Begin working on your assigned task. Start by logging your initial progress.`;
+${agent.canSpawnAgents ? `## HIERARCHICAL DELEGATION (You Can Spawn Sub-Agents)
+
+As a ${agent.role}, you can spawn your own sub-agents for specialized work:
+
+\\\`\\\`\\\`bash
+# Spawn a sub-agent under your supervision
+curl -X POST ${apiBase}/api/agents/spawn \\\\
+  -H "Content-Type: application/json" \\\\
+  -d '{
+    "workspaceId": "${workspace.id}",
+    "name": "my-specialist",
+    "role": "specialist",
+    "model": "sonnet",
+    "parentAgentId": "${agent.id}",
+    "prompt": "Your task is to..."
+  }'
+\\\`\\\`\\\`
+
+**Your sub-agents will report to YOU, not the mayor.** Monitor their messages and handle their completions/blockers.
+` : ''}
+Begin working on your assigned task immediately. Execute, don't announce.`;
 }
 
 // ============ AGENT SPAWNING ============
@@ -1170,12 +1329,16 @@ async function spawnMayorForWorkspace(workspace: Workspace): Promise<Agent> {
     currentTask: null,
     worktree: null,
     worktreeBranch: null,
-    ownedPaths: [],  // Mayor doesn't own specific files
+    ownedPaths: [],  // Mayor doesn't own specific files - coordinator role
     tmuxSession: getTmuxSessionName(workspace, 'mayor'),
     pid: null,
     lastSeen: now,
     created: now,
-    workspaceId: workspace.id
+    workspaceId: workspace.id,
+    // Mayor is the root of the hierarchy
+    parentAgentId: null,
+    canSpawnAgents: true,
+    spawnedAgentIds: []
   };
 
   const agents = getAgents(workspace.id);
@@ -2102,7 +2265,9 @@ app.post('/api/agents/spawn', async (req: Request, res: Response) => {
     workspaceId: bodyWorkspaceId,
     ownedPaths = [],  // File/directory patterns this agent owns
     useWorktree = true,  // Whether to create a git worktree for this agent
-    branchName  // Optional custom branch name (defaults to slugified task description)
+    branchName,  // Optional custom branch name (defaults to slugified task description)
+    parentAgentId = null,  // ID of spawning agent (for hierarchical delegation)
+    canSpawnAgents = false  // Whether this agent can spawn its own sub-agents
   } = req.body;
 
   const workspaceId = bodyWorkspaceId || getWorkspaceIdFromRequest(req);
@@ -2135,6 +2300,25 @@ app.post('/api/agents/spawn', async (req: Request, res: Response) => {
     return;
   }
 
+  // Validate parent agent if specified (hierarchical delegation)
+  let parentAgent: Agent | null = null;
+  if (parentAgentId) {
+    parentAgent = agents.find(a => a.id === parentAgentId) || null;
+    if (!parentAgent) {
+      res.status(400).json({ error: 'Parent agent not found' });
+      return;
+    }
+    if (!parentAgent.canSpawnAgents) {
+      res.status(403).json({ error: 'Parent agent does not have permission to spawn sub-agents' });
+      return;
+    }
+  }
+
+  // Determine if this agent should be able to spawn based on role
+  // Roles that can spawn: mayor (always), witness (monitors workers), deacon (keeps agents alive)
+  const rolesWithSpawnPermission: AgentRole[] = ['mayor', 'witness', 'deacon'];
+  const shouldCanSpawn = canSpawnAgents || rolesWithSpawnPermission.includes(role as AgentRole);
+
   // Note: ownedPaths is tracked for documentation but not enforced
   // Git worktrees provide isolation between agents
 
@@ -2142,7 +2326,7 @@ app.post('/api/agents/spawn', async (req: Request, res: Response) => {
   const agent: Agent = {
     id: uuidv4(),
     name,
-    role: role as Agent['role'],
+    role: role as AgentRole,
     model: model as Agent['model'],
     status: 'starting',
     currentTask: null,
@@ -2153,8 +2337,19 @@ app.post('/api/agents/spawn', async (req: Request, res: Response) => {
     pid: null,
     lastSeen: now,
     created: now,
-    workspaceId
+    workspaceId,
+    // Hierarchical delegation
+    parentAgentId: parentAgentId,
+    canSpawnAgents: shouldCanSpawn,
+    spawnedAgentIds: []
   };
+
+  // Update parent agent's spawnedAgentIds
+  if (parentAgent) {
+    parentAgent.spawnedAgentIds.push(agent.id);
+    saveAgents(workspaceId);
+    broadcast('agent:updated', parentAgent, workspaceId);
+  }
 
   // Create git worktree for sub-agents (not mayors) if workspace is a git repo
   let agentWorkingDir = workspace.workingDirectory;
