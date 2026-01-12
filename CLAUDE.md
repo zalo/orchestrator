@@ -116,6 +116,7 @@ GET /api/beads/next/available
 GET /api/agents
 POST /api/agents/spawn             { workspaceId, name, role, model, prompt, ownedPaths?, useWorktree?, branchName? }
 GET/DELETE /api/agents/:id
+PATCH /api/agents/:id/status       { status, event, workspaceId } - Lifecycle hook endpoint
 
 # Progress & Messages
 GET/POST /api/progress
@@ -164,6 +165,34 @@ Sub-agents automatically get their own git worktree when spawned (if the workspa
 Agents can optionally declare files they're working on via `ownedPaths` when spawned. This is **purely informational** - agents are free to modify any files as they discover what needs changing. Git worktrees provide the actual isolation between agents.
 
 The `/api/ownership` endpoints exist for visibility only - they don't restrict agent behavior.
+
+## Agent Lifecycle Hooks
+
+Agents automatically report their status via Claude Code hooks. When an agent is spawned, the server writes `.claude/settings.json` with lifecycle hooks that call the orchestrator API:
+
+- **SessionStart**: Updates agent status to `working`, sends `[HOOK]` message to mayor
+- **Stop**: Updates agent status to `offline`, sends `[HOOK]` message to mayor
+
+Hook messages appear in the Messages panel prefixed with `[HOOK]` for easy identification.
+
+### Manual Status Update
+
+Agents can also manually update their status:
+
+```bash
+# Set status to idle (between tasks)
+curl -X PATCH http://localhost:3001/api/agents/{id}/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "idle", "event": "idle", "workspaceId": "..."}'
+
+# Available statuses: idle, working, blocked, offline, starting
+```
+
+The endpoint automatically:
+1. Updates the agent's status field
+2. Sends a `[HOOK]` message to the mayor
+3. Sends a `[HOOK]` message to the deacon (if running)
+4. Broadcasts WebSocket update to all connected clients
 
 ## Merge Queue
 

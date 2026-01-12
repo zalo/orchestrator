@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sX PATCH \"http://localhost:3001/api/agents/e5f9aab0-b9f2-4163-986a-6bb9d2ba1180/status\" -H \"Content-Type: application/json\" -d '{\"status\":\"working\",\"event\":\"session_start\",\"workspaceId\":\"257ebafe-f304-4850-9819-c8201b27bedf\"}'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -sX PATCH \"http://localhost:3001/api/agents/e5f9aab0-b9f2-4163-986a-6bb9d2ba1180/status\" -H \"Content-Type: application/json\" -d '{\"status\":\"offline\",\"event\":\"session_stop\",\"workspaceId\":\"257ebafe-f304-4850-9819-c8201b27bedf\"}'"
+          }
+        ]
+      }
+    ]
+  },
+  "_idleCommand": "curl -sX PATCH \"http://localhost:3001/api/agents/e5f9aab0-b9f2-4163-986a-6bb9d2ba1180/status\" -H \"Content-Type: application/json\" -d '{\"status\":\"idle\",\"event\":\"idle\",\"workspaceId\":\"257ebafe-f304-4850-9819-c8201b27bedf\"}'"
+}

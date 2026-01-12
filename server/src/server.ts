@@ -260,6 +260,24 @@ function saveMessages(workspaceId: string) {
   saveWorkspaceData(workspaceId, 'messages.json', messages);
 }
 
+// Helper to add a message and broadcast it
+function addMessage(workspaceId: string, from: string, to: string, content: string, type: Message['type'] = 'info'): Message {
+  const messages = getMessages(workspaceId);
+  const message: Message = {
+    id: uuidv4(),
+    from,
+    to,
+    timestamp: new Date().toISOString(),
+    content,
+    read: false,
+    type
+  };
+  messages.push(message);
+  saveMessages(workspaceId);
+  broadcast('message:new', message, workspaceId);
+  return message;
+}
+
 function getMergeQueue(workspaceId: string): MergeRequest[] {
   if (!workspaceMergeQueue.has(workspaceId)) {
     workspaceMergeQueue.set(workspaceId, loadWorkspaceData(workspaceId, 'merge-queue.json', []));
@@ -864,6 +882,14 @@ Get summary statistics for the dashboard.
 curl "${apiBase}/api/stats?workspaceId=\${workspace.id}"
 \`\`\`
 
+### Agent Lifecycle Hooks
+Agents automatically report status changes via Claude Code hooks. You'll receive \`[HOOK]\` prefixed messages when:
+- **SessionStart**: Agent started working
+- **Stop**: Agent stopped/exited
+- **Idle**: Agent is between tasks
+
+Watch for these in your messages - they provide visibility into agent lifecycles without manual polling.
+
 ## GUIDELINES
 
 ### When to Create Beads
@@ -1263,6 +1289,15 @@ curl "${apiBase}/api/skills?workspaceId=${workspace.id}"
 curl "${apiBase}/api/skills/[skill-name]?workspaceId=${workspace.id}"
 \`\`\`
 
+### Status Updates (Lifecycle Hooks)
+Your session has automatic hooks that notify mayor when you start/stop. You can also manually update status:
+\`\`\`bash
+# Set to idle (between tasks, waiting for work)
+curl -X PATCH ${apiBase}/api/agents/${agent.id}/status \\
+  -H "Content-Type: application/json" \\
+  -d '{"status":"idle","event":"idle","workspaceId":"${workspace.id}"}'
+\`\`\`
+
 ## WORKFLOW
 1. **Claim a bead FIRST** - Check for available beads and claim one before starting
 2. **Execute immediately** - Begin your task now, no preamble
@@ -1638,6 +1673,80 @@ async function spawnMayorForWorkspace(workspace: Workspace): Promise<Agent> {
   return mayor;
 }
 
+// Generate Claude Code settings.json with lifecycle hooks
+function generateAgentSettings(agent: Agent, workspaceId: string): object {
+  const apiUrl = `http://localhost:${PORT}`;
+
+  // Build the hook commands using curl to update status
+  const sessionStartCmd = `curl -sX PATCH "${apiUrl}/api/agents/${agent.id}/status" -H "Content-Type: application/json" -d '{"status":"working","event":"session_start","workspaceId":"${workspaceId}"}'`;
+  const sessionStopCmd = `curl -sX PATCH "${apiUrl}/api/agents/${agent.id}/status" -H "Content-Type: application/json" -d '{"status":"offline","event":"session_stop","workspaceId":"${workspaceId}"}'`;
+  const idleCmd = `curl -sX PATCH "${apiUrl}/api/agents/${agent.id}/status" -H "Content-Type: application/json" -d '{"status":"idle","event":"idle","workspaceId":"${workspaceId}"}'`;
+
+  return {
+    hooks: {
+      SessionStart: [{
+        matcher: "",
+        hooks: [{
+          type: "command",
+          command: sessionStartCmd
+        }]
+      }],
+      Stop: [{
+        matcher: "",
+        hooks: [{
+          type: "command",
+          command: sessionStopCmd
+        }]
+      }]
+    },
+    // Include a comment about the idle command for agents to use manually
+    _idleCommand: idleCmd
+  };
+}
+
+// Write Claude Code settings to the agent's working directory
+function writeAgentSettings(agent: Agent, workspaceId: string, workingDir: string): boolean {
+  try {
+    const claudeDir = path.join(workingDir, '.claude');
+    const settingsPath = path.join(claudeDir, 'settings.json');
+
+    // Create .claude directory if it doesn't exist
+    if (!fs.existsSync(claudeDir)) {
+      fs.mkdirSync(claudeDir, { recursive: true });
+    }
+
+    // Generate new settings
+    const newSettings = generateAgentSettings(agent, workspaceId);
+
+    // If settings file already exists, merge hooks with existing settings
+    let finalSettings = newSettings;
+    if (fs.existsSync(settingsPath)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        // Merge: our hooks take precedence but preserve other settings
+        finalSettings = {
+          ...existing,
+          hooks: {
+            ...existing.hooks,
+            ...(newSettings as { hooks: object }).hooks
+          },
+          _idleCommand: (newSettings as { _idleCommand: string })._idleCommand
+        };
+      } catch {
+        // If existing file is invalid, just use new settings
+        console.log(`Warning: Could not parse existing settings at ${settingsPath}, overwriting`);
+      }
+    }
+
+    fs.writeFileSync(settingsPath, JSON.stringify(finalSettings, null, 2));
+    console.log(`Wrote agent settings to ${settingsPath}`);
+    return true;
+  } catch (e) {
+    console.error(`Failed to write agent settings:`, e);
+    return false;
+  }
+}
+
 // Spawn agent in a specific directory (used for worktrees)
 async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt: string, workingDir: string): Promise<boolean> {
   const sessionName = agent.tmuxSession || getTmuxSessionName(workspace, agent.role === 'mayor' ? 'mayor' : agent.name);
@@ -1646,6 +1755,9 @@ async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt:
   if (sessionExists(sessionName)) {
     killTmuxSession(sessionName);
   }
+
+  // Write Claude Code settings with lifecycle hooks BEFORE spawning
+  writeAgentSettings(agent, workspace.id, workingDir);
 
   // Create tmux session in the specified directory
   if (!createTmuxSession(sessionName, workingDir)) {
@@ -2718,6 +2830,94 @@ app.delete('/api/agents/:id', (req: Request, res: Response) => {
   broadcast('agent:deleted', { id: agent.id }, foundWorkspaceId);
 
   res.json({ success: true, worktreeRemoved: !!agent.worktree });
+});
+
+// Agent status update endpoint - called by Claude Code lifecycle hooks
+app.patch('/api/agents/:id/status', (req: Request, res: Response) => {
+  const { status, event, workspaceId: bodyWorkspaceId } = req.body;
+
+  if (!status || !['idle', 'working', 'blocked', 'offline', 'starting'].includes(status)) {
+    res.status(400).json({ error: 'Valid status required (idle, working, blocked, offline, starting)' });
+    return;
+  }
+
+  // Find agent across workspaces
+  let agents: Agent[] = [];
+  let foundWorkspaceId: string | null = bodyWorkspaceId || null;
+  let agent: Agent | undefined;
+
+  if (foundWorkspaceId) {
+    agents = getAgents(foundWorkspaceId);
+    agent = agents.find(a => a.id === req.params.id);
+  }
+
+  // If not found with provided workspaceId, search all workspaces
+  if (!agent) {
+    for (const ws of workspaces) {
+      agents = getAgents(ws.id);
+      agent = agents.find(a => a.id === req.params.id);
+      if (agent) {
+        foundWorkspaceId = ws.id;
+        break;
+      }
+    }
+  }
+
+  if (!agent || !foundWorkspaceId) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+
+  // Update agent status
+  const previousStatus = agent.status;
+  agent.status = status;
+  agent.lastSeen = new Date().toISOString();
+  saveAgents(foundWorkspaceId);
+
+  // Broadcast agent update
+  broadcast('agent:updated', agent, foundWorkspaceId);
+
+  // Create notification message based on event type
+  let messageContent: string;
+  let messageTo = 'mayor';
+
+  // Check if deacon is running in this workspace
+  const deacon = agents.find(a => a.role === 'deacon' && a.status === 'working');
+
+  switch (event) {
+    case 'session_start':
+      messageContent = `[HOOK] ${agent.name} started working (${previousStatus} → working)`;
+      break;
+    case 'session_stop':
+      messageContent = `[HOOK] ${agent.name} stopped (${previousStatus} → offline)`;
+      break;
+    case 'idle':
+      messageContent = `[HOOK] ${agent.name} is now idle (${previousStatus} → idle)`;
+      break;
+    default:
+      messageContent = `[HOOK] ${agent.name} status changed: ${previousStatus} → ${status}`;
+  }
+
+  // Send message to mayor
+  addMessage(foundWorkspaceId, agent.name, messageTo, messageContent, 'info');
+
+  // Also notify deacon if running (and it's not the deacon itself)
+  if (deacon && deacon.id !== agent.id) {
+    addMessage(foundWorkspaceId, agent.name, 'deacon', messageContent, 'info');
+  }
+
+  console.log(`[HOOK] Agent ${agent.name} (${agent.id}): ${previousStatus} → ${status} (event: ${event})`);
+
+  res.json({
+    success: true,
+    agent: {
+      id: agent.id,
+      name: agent.name,
+      status: agent.status,
+      previousStatus
+    },
+    message: messageContent
+  });
 });
 
 // ============ PROGRESS API ============
