@@ -9,18 +9,19 @@
 
 1. [Executive Summary](#executive-summary)
 2. [Core Principles](#core-principles)
-3. [Agent Roles & Hierarchy](#agent-roles--hierarchy)
-4. [Persistent Memory & Context](#persistent-memory--context)
-5. [Work Tracking with Beads](#work-tracking-with-beads)
-6. [Git Worktrees for Parallelization](#git-worktrees-for-parallelization)
-7. [Merge Queue Protocols](#merge-queue-protocols)
-8. [Hierarchical Delegation](#hierarchical-delegation)
-9. [Knowledge Gathering & Bootstrap](#knowledge-gathering--bootstrap)
-10. [Context Management & Compaction](#context-management--compaction)
-11. [Communication Protocols](#communication-protocols)
-12. [Building & Testing Infrastructure](#building--testing-infrastructure)
-13. [Tool Comparison Matrix](#tool-comparison-matrix)
-14. [Implementation Roadmap](#implementation-roadmap)
+3. [Agent Abstraction Tiers](#agent-abstraction-tiers)
+4. [Agent Roles & Hierarchy](#agent-roles--hierarchy)
+5. [Persistent Memory & Context](#persistent-memory--context)
+6. [Work Tracking with Beads](#work-tracking-with-beads)
+7. [Git Worktrees for Parallelization](#git-worktrees-for-parallelization)
+8. [Merge Queue Protocols](#merge-queue-protocols)
+9. [Hierarchical Delegation](#hierarchical-delegation)
+10. [Knowledge Gathering & Bootstrap](#knowledge-gathering--bootstrap)
+11. [Context Management & Compaction](#context-management--compaction)
+12. [Communication Protocols](#communication-protocols)
+13. [Building & Testing Infrastructure](#building--testing-infrastructure)
+14. [Tool Comparison Matrix](#tool-comparison-matrix)
+15. [Implementation Roadmap](#implementation-roadmap)
 
 ---
 
@@ -95,6 +96,134 @@ Every completion is recorded. Every handoff is logged. Every bead closed becomes
 4. **Reputation is earned** - The ledger is each agent's professional record
 
 This isn't just about the current task—it's about building demonstrated capability over time.
+
+---
+
+## Agent Abstraction Tiers
+
+Understanding which agent abstractions provide the most value helps prioritize implementation efforts. Based on practitioner experience, here's a tiered ranking from most to least effective:
+
+### Tier 1: Subagents (Direct Buff)
+
+**What it is:** Spawning specialized child agents to handle focused tasks, preventing context rot in the parent.
+
+**Why it works:**
+- Prevents context window degradation from accumulated tool outputs
+- Enables ad-hoc specialization without predefined roles
+- Scales naturally—as agents get smarter, they allocate subagents more effectively
+- Bitter lesson adjacent: simple mechanism that compounds with capability improvements
+
+**Implementation guidance:** "Use subagents when needed" is sufficient. No complex configuration required.
+
+**Trade-off:** Delivers roughly half the value of full multi-agent orchestration for dramatically less complexity. Start here before adding hierarchy.
+
+### Subagent Usage by Role
+
+**Critical distinction:** There are two types of agent spawning:
+1. **Native subagents** (Task tool) - Temporary, session-scoped, any agent can use
+2. **Persistent agents** (Orchestrator API) - Long-lived, role'd, only Mayor/Witness/Deacon can spawn
+
+| Role | Can Spawn Persistent Agents? | Native Subagent Usage |
+|------|------------------------------|----------------------|
+| **Mayor** | Yes - be LIBERAL | Delegate to persistent agents instead |
+| **Witness** | Yes | Moderate - spawn specialists for work |
+| **Deacon** | Yes | Moderate - spawn as needed |
+| **Specialist** | No | **HEAVY** - compensate by using Task tool liberally |
+| **Reviewer** | No | **HEAVY** - spawn explorers for deep dives |
+| **Explorer** | No | Moderate - focused reconnaissance |
+| **Refinery** | No | **HEAVY** - parallelize processing |
+
+**For Mayor:** Be liberal with hierarchical agent allocation. Your job is coordination, not implementation. When work comes in:
+- Spawn persistent specialists for implementation tasks
+- Spawn witnesses to monitor complex parallel work
+- Use the full role hierarchy—that's what it's for
+- Reserve native subagents for quick queries you need answered immediately
+
+**For non-spawning roles (Specialists, Reviewers, Refinery):** You cannot create persistent workers, so compensate by using Claude's native Task tool aggressively:
+- Spawn explore subagents for codebase reconnaissance
+- Spawn research subagents for documentation lookups
+- Spawn verification subagents to check your work
+- Don't let context rot—offload anything that doesn't need your direct attention
+
+The goal: **Every agent should be delegating constantly.** Mayor delegates to persistent agents. Everyone else delegates to native subagents. Work flows downward; only results and blockers flow up.
+
+### Tier 2: Metaprompting (Direct Buff)
+
+**What it is:** Expanding brief task requests into comprehensive prompt files with context, constraints, and scratchpad space.
+
+**Why it works:**
+- 3 minutes of prompting can structure a 20-minute task effectively
+- Sanity-checks assumptions before execution begins
+- Improves stability by making implicit requirements explicit
+- Creates reusable patterns for similar tasks
+
+**Implementation guidance:** Create a `/metaprompt` skill or command that:
+1. Takes a brief task description
+2. Asks clarifying questions
+3. Generates a structured prompt with:
+   - Context summary
+   - Success criteria
+   - Constraints and boundaries
+   - Scratchpad for working notes
+4. Returns plan for review before execution
+
+**Trade-off:** You should review the generated metaprompt, but even without review it improves stability.
+
+### Tier 3: Front-loaded Questioning (Conditional Buff)
+
+**What it is:** Agents ask clarifying questions at the start rather than making assumptions.
+
+**Why it works:**
+- Catches misaligned assumptions before wasted work
+- Surfaces ambiguity in requirements early
+- Builds shared understanding
+
+**Limitations:**
+- Requires user engagement in plan mode
+- Non-transparent: hard to tell if silence means understanding, disabled feature, or no questions
+- Can slow down obvious tasks unnecessarily
+
+**Implementation guidance:** Use plan mode with explicit question prompts. Make it clear when the agent has no questions vs. skipped asking.
+
+### Tier 4: Extended Thinking (Diminishing Returns)
+
+**What it is:** Prompts that encourage longer reasoning chains before action.
+
+**Trade-offs:**
+- Easy to add, generally helpful
+- Non-transparent: you can't see the reasoning
+- Being phased out as models improve at implicit reasoning
+- May become unnecessary as base capabilities advance
+
+**Implementation guidance:** Include when helpful, but don't depend on it. Monitor whether it actually improves outcomes in your specific use cases.
+
+### The Complexity vs. Value Curve
+
+```
+Value
+  │
+  │     ┌─ Full multi-agent orchestration (Gas Town, etc.)
+  │    /
+  │   /
+  │  ╱  ┌─ Subagents alone (this level!)
+  │ ╱  /
+  │╱  /
+  ├──/───────────────────────────────────
+  │ │
+  │ │
+  └─┴────────────────────────────────────→ Complexity
+
+Key insight: Subagents alone capture ~50% of multi-agent value
+at ~10% of the complexity. Start simple, add complexity only
+when you've exhausted the value from simpler abstractions.
+```
+
+### Practical Implications
+
+1. **For new projects:** Start with subagents + metaprompting. Don't over-engineer.
+2. **For scaling up:** Add hierarchy (Gas Town roles) only after subagents hit limits.
+3. **For stability:** Front-loaded questioning helps but requires user participation.
+4. **For transparency:** Document when agents choose NOT to ask questions.
 
 ---
 
@@ -719,6 +848,49 @@ Long-running tasks exceed context limits. Tool-heavy workflows consume tokens ra
 3. **On blocker**: Agent MUST message blocker immediately (don't wait!)
 4. **On progress**: Periodic status messages keep coordination smooth
 5. **Check inbox**: Every agent should check for messages regularly
+
+### Mayor Nudge Protocol
+
+The Mayor is the main drive shaft - if it stalls, the entire system stops. Roles with spawn permission should monitor and nudge the Mayor when it appears idle.
+
+**Who Can Nudge Mayor:**
+- **Deacon** (primary): Agent patrol role - should send periodic propulsion checks
+- **Witness**: If specialists are blocked waiting on Mayor response
+- **External evaluator**: For evaluation runs
+
+**Nudge Message Template:**
+```
+PROPULSION CHECK: You are the Mayor - the main drive shaft.
+Check for pending work:
+1. Unread messages (especially blockers and completions)
+2. Beads needing attention (blocked, unassigned)
+3. Merge queue status
+4. Agent health (any offline?)
+
+If work exists, EXECUTE immediately. Status report and next actions?
+```
+
+**Nudge Triggers:**
+- Mayor hasn't sent a message in 5+ minutes during active work
+- Blockers sitting unaddressed for 3+ minutes
+- Completion messages not acknowledged
+- Merge queue items waiting for Mayor decision
+
+**Deacon Patrol Protocol:**
+```markdown
+## Deacon Propulsion Check Cycle
+
+Every 5 minutes during active work:
+1. Query messages for recent Mayor activity
+2. Check for unaddressed blockers
+3. Check for pending completions without acknowledgment
+4. If Mayor appears stalled:
+   - Send nudge message to Mayor
+   - Log the nudge in progress
+5. If Mayor unresponsive after 2 nudges:
+   - Escalate to external evaluator/user
+   - Log escalation event
+```
 
 ### Inter-Agent Messaging
 

@@ -410,8 +410,10 @@ function saveTmuxSessionLog(sessionName: string, agentName: string, workspaceId?
  */
 function nudgeTmuxSession(sessionName: string, message: string, debounceMs: number = 500): boolean {
   try {
-    // 1. Send text in literal mode (-l) to handle special characters
-    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' -l ${JSON.stringify(message)}`, { encoding: 'utf-8' });
+    // 1. Send text using single quotes to prevent shell expansion
+    // Escape single quotes in message using '\'' pattern
+    const escapedMessage = message.replace(/'/g, "'\\''");
+    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${escapedMessage}'`, { encoding: 'utf-8' });
 
     // 2. Wait for paste to complete (tested, required for Claude Code)
     execSync(`sleep ${debounceMs / 1000}`, { encoding: 'utf-8' });
@@ -1559,9 +1561,13 @@ async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt:
   }
 
   try {
-    // Launch Claude - use literal mode for the command itself
-    const claudeCmd = `${claudePath} --dangerously-skip-permissions --append-system-prompt "$(cat '${promptFile}')"`;
-    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' -l ${JSON.stringify(claudeCmd)}`, { encoding: 'utf-8' });
+    // Launch Claude - use single quotes to prevent shell expansion in the outer shell
+    // Escape single quotes in the path using the '\'' pattern
+    const escapedPromptFile = promptFile.replace(/'/g, "'\\''");
+    const claudeCmd = `${claudePath} --dangerously-skip-permissions --append-system-prompt "$(cat '${escapedPromptFile}')"`;
+    // Escape any single quotes in claudeCmd itself for safe embedding in single quotes
+    const escapedClaudeCmd = claudeCmd.replace(/'/g, "'\\''");
+    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${escapedClaudeCmd}'`, { encoding: 'utf-8' });
     execSync(`sleep 0.1`, { encoding: 'utf-8' });
     execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' Enter`, { encoding: 'utf-8' });
 
