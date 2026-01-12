@@ -172,6 +172,24 @@ When agents complete work in their worktrees, they submit to a merge queue inste
 - Automatic rebase notifications when merges happen
 - Conflict detection based on file overlap
 - Position tracking in the queue
+- **Review Gate**: Requires `reviewStatus: approved` and `buildStatus: passed` before merge
+
+### Review Gate
+
+MRs cannot be merged until:
+1. A **reviewer** sets `reviewStatus: "approved"`
+2. Build verification passes (`buildStatus: "passed"`)
+
+```bash
+# Reviewer approves an MR
+curl -X PATCH http://localhost:3001/api/merge-queue/MR-001 \
+  -d '{"reviewStatus": "approved", "reviewedBy": "code-reviewer", "buildStatus": "passed"}'
+
+# Attempting merge without approval will fail
+curl -X PATCH http://localhost:3001/api/merge-queue/MR-001 \
+  -d '{"status": "merged"}'
+# Returns: {"error": "Merge blocked by quality gate", "gateFailures": [...]}
+```
 
 ## Bootstrap Protocol
 
@@ -264,7 +282,7 @@ tmux -S /tmp/orchestrator-tmux.sock list-sessions
 tmux -S /tmp/orchestrator-tmux.sock capture-pane -t {session-name} -p | tail -50
 
 # Manually send message to stuck agent
-tmux -S /tmp/orchestrator-tmux.sock send-keys -t {session-name} 'Your message here' Enter
+tmux -S /tmp/orchestrator-tmux.sock send-keys -t {session-name} 'Your message here' C-m
 
 # Attach to session interactively
 tmux -S /tmp/orchestrator-tmux.sock attach -t {session-name}

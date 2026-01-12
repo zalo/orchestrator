@@ -106,6 +106,15 @@ interface MergeRequest {
   mergedAt: string | null;
   conflictsWith: string[];  // Other MR ids that conflict
   filesChanged: string[];
+  // Review gate fields
+  reviewStatus: 'pending' | 'approved' | 'changes_requested';
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewComments: string | null;
+  // Build verification fields
+  buildStatus: 'pending' | 'running' | 'passed' | 'failed';
+  buildOutput: string | null;
+  buildCheckedAt: string | null;
 }
 
 interface ProgressEntry {
@@ -1187,12 +1196,38 @@ curl "${apiBase}/api/skills/[skill-name]?workspaceId=${workspace.id}"
 \`\`\`
 
 ## WORKFLOW
-1. **Execute immediately** - Begin your task now, no preamble
-2. **Log progress** - Update progress API every few minutes
-3. **Check messages** - Respond to any messages from ${reportTo}
-4. **Test changes** - If web UI, use Playwright to verify
-5. **Message completion** - MUST send completion message when done
-6. **Message blockers** - MUST send blocker message if stuck (don't wait!)
+1. **Claim a bead FIRST** - Check for available beads and claim one before starting
+2. **Execute immediately** - Begin your task now, no preamble
+3. **Log progress** - Update progress API every few minutes
+4. **Check messages** - Respond to any messages from ${reportTo}
+5. **Test changes** - If web UI, use Playwright to verify
+6. **Update bead status** - Mark bead as "done" when complete (with test results!)
+7. **Message completion** - MUST send completion message when done
+8. **Message blockers** - MUST send blocker message if stuck (don't wait!)
+
+## BEAD TRACKING (REQUIRED)
+You MUST track your work through beads. This ensures visibility and audit trails.
+
+\`\`\`bash
+# 1. Find available beads to work on
+curl "${apiBase}/api/beads?workspaceId=${workspace.id}"
+
+# 2. Claim a bead by setting yourself as assignee
+curl -X PATCH ${apiBase}/api/beads/BEAD-001 \\
+  -H "Content-Type: application/json" \\
+  -d '{"status": "in_progress", "assignee": "${agent.name}"}'
+
+# 3. When done, run tests and mark complete
+curl -X POST ${apiBase}/api/beads/BEAD-001/test \\
+  -H "Content-Type: application/json" \\
+  -d '{"testStatus": "passed", "command": "npm run build"}'
+
+curl -X PATCH ${apiBase}/api/beads/BEAD-001 \\
+  -H "Content-Type: application/json" \\
+  -d '{"status": "done"}'
+\`\`\`
+
+**Do NOT skip bead tracking.** If no suitable bead exists, ask ${reportTo} to create one.
 
 ## TESTING REQUIREMENTS
 
@@ -1278,6 +1313,13 @@ curl -X POST ${apiBase}/api/merge-queue \\
   }'
 \`\`\`
 
+**IMPORTANT: Review Gate is Enforced**
+Your MR will NOT be merged until:
+1. A **reviewer** sets \`reviewStatus: "approved"\`
+2. Your **build passes** (\`buildStatus: "passed"\`)
+
+After submitting, wait for reviewer feedback. If changes are requested, address them and notify the reviewer.
+
 ## YOUR IDENTITY
 Agent ID: ${agent.id}
 Agent Name: ${agent.name}
@@ -1309,6 +1351,90 @@ curl -X POST ${apiBase}/api/agents/spawn \\\\
 \\\`\\\`\\\`
 
 **Your sub-agents will report to YOU, not the mayor.** Monitor their messages and handle their completions/blockers.
+` : ''}
+${agent.role === 'reviewer' ? `## REVIEWER ROLE: Quality Gate Authority
+
+As a reviewer, you are the quality gate. Your approval is REQUIRED before any MR can be merged.
+
+### Review Workflow
+1. Fetch the merge queue to find pending MRs
+2. For each MR, checkout/fetch the branch and review the code
+3. Run build and tests in the branch
+4. Set reviewStatus and buildStatus based on your findings
+
+### Setting Review Status
+\\\`\\\`\\\`bash
+# APPROVE an MR (allows merge)
+curl -X PATCH ${apiBase}/api/merge-queue/MR-001 \\\\
+  -H "Content-Type: application/json" \\\\
+  -d '{
+    "reviewStatus": "approved",
+    "reviewedBy": "${agent.name}",
+    "reviewComments": "Code looks good. Build passes.",
+    "buildStatus": "passed",
+    "buildOutput": "Build successful, all tests pass"
+  }'
+
+# REQUEST CHANGES (blocks merge)
+curl -X PATCH ${apiBase}/api/merge-queue/MR-001 \\\\
+  -H "Content-Type: application/json" \\\\
+  -d '{
+    "reviewStatus": "changes_requested",
+    "reviewedBy": "${agent.name}",
+    "reviewComments": "Issues found: [list]. Please fix and re-request review."
+  }'
+
+# Set build status (run build first!)
+curl -X PATCH ${apiBase}/api/merge-queue/MR-001 \\\\
+  -H "Content-Type: application/json" \\\\
+  -d '{
+    "buildStatus": "passed",
+    "buildOutput": "npm run build succeeded"
+  }'
+\\\`\\\`\\\`
+
+### Send feedback to the MR author
+Always message the agent when you complete a review:
+- If approved: Send \`completion\` message confirming approval
+- If changes requested: Send \`action_required\` message with specific feedback
+` : ''}
+${agent.role === 'refinery' ? `## REFINERY ROLE: Merge Queue Processor
+
+As the refinery, you process the merge queue sequentially. **You cannot merge unless the review gate passes.**
+
+### Merge Queue Workflow
+1. Fetch the merge queue to find items ready to merge
+2. Check that \`reviewStatus === 'approved'\` and \`buildStatus === 'passed'\`
+3. If gate passes, perform the actual git merge
+4. Mark the MR as merged
+5. System will notify other agents to rebase
+
+### Checking Gate Status
+\\\`\\\`\\\`bash
+# Get merge queue
+curl "${apiBase}/api/merge-queue?workspaceId=${workspace.id}"
+
+# Check each MR for:
+# - reviewStatus: must be "approved"
+# - buildStatus: must be "passed"
+# - status: should be "in_queue" (not "conflict")
+\\\`\\\`\\\`
+
+### Attempting to Merge
+\\\`\\\`\\\`bash
+# This will FAIL if review gate not passed
+curl -X PATCH ${apiBase}/api/merge-queue/MR-001 \\\\
+  -H "Content-Type: application/json" \\\\
+  -d '{"status": "merged"}'
+
+# If it fails, the API will return:
+# {"error": "Merge blocked by quality gate", "gateFailures": [...]}
+
+# You can see why merge is blocked and notify the relevant agents
+\\\`\\\`\\\`
+
+### DO NOT bypass the gate
+The \`forceBypassGate: true\` option exists but should NOT be used unless explicitly authorized by the mayor. Quality gates exist for a reason.
 ` : ''}
 Begin working on your assigned task immediately. Execute, don't announce.`;
 }
@@ -1401,7 +1527,7 @@ async function spawnClaudeAgentInDir(agent: Agent, workspace: Workspace, prompt:
 
   try {
     const claudeCmd = `${claudePath} --dangerously-skip-permissions --append-system-prompt "$(cat '${promptFile}')"`;
-    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${claudeCmd}' Enter`, { encoding: 'utf-8' });
+    execSync(`tmux -S '${TMUX_SOCKET}' send-keys -t '${sessionName}' '${claudeCmd}' C-m`, { encoding: 'utf-8' });
 
     agent.tmuxSession = sessionName;
 
@@ -2653,7 +2779,16 @@ app.post('/api/merge-queue', (req: Request, res: Response) => {
     updated: now,
     mergedAt: null,
     conflictsWith,
-    filesChanged
+    filesChanged,
+    // Review gate - requires reviewer approval before merge
+    reviewStatus: 'pending',
+    reviewedBy: null,
+    reviewedAt: null,
+    reviewComments: null,
+    // Build verification - requires passing build before merge
+    buildStatus: 'pending',
+    buildOutput: null,
+    buildCheckedAt: null
   };
 
   queue.push(mergeRequest);
@@ -2682,7 +2817,7 @@ app.post('/api/merge-queue', (req: Request, res: Response) => {
 });
 
 app.patch('/api/merge-queue/:id', (req: Request, res: Response) => {
-  const { status, position } = req.body;
+  const { status, position, reviewStatus, reviewedBy, reviewComments, buildStatus, buildOutput, forceBypassGate } = req.body;
   const mrId = req.params.id;
 
   // Find MR across all workspaces
@@ -2707,7 +2842,45 @@ app.patch('/api/merge-queue/:id', (req: Request, res: Response) => {
   const mr = queue[mrIndex];
   const now = new Date().toISOString();
 
+  // Handle review status updates
+  if (reviewStatus) {
+    mr.reviewStatus = reviewStatus;
+    mr.reviewedBy = reviewedBy || mr.reviewedBy;
+    mr.reviewedAt = now;
+    mr.reviewComments = reviewComments || mr.reviewComments;
+    mr.updated = now;
+    broadcast('merge-queue:updated', mr, foundWorkspaceId);
+  }
+
+  // Handle build status updates
+  if (buildStatus) {
+    mr.buildStatus = buildStatus;
+    mr.buildOutput = buildOutput || mr.buildOutput;
+    mr.buildCheckedAt = now;
+    mr.updated = now;
+    broadcast('merge-queue:updated', mr, foundWorkspaceId);
+  }
+
   if (status) {
+    // REVIEW GATE: Block merge if review not approved or build not passed
+    if (status === 'merged' && !forceBypassGate) {
+      const gateFailures: string[] = [];
+      if (mr.reviewStatus !== 'approved') {
+        gateFailures.push(`Review not approved (status: ${mr.reviewStatus})`);
+      }
+      if (mr.buildStatus !== 'passed') {
+        gateFailures.push(`Build not passed (status: ${mr.buildStatus})`);
+      }
+      if (gateFailures.length > 0) {
+        res.status(400).json({
+          error: 'Merge blocked by quality gate',
+          gateFailures,
+          hint: 'Set forceBypassGate: true to override (not recommended)'
+        });
+        return;
+      }
+    }
+
     mr.status = status;
     mr.updated = now;
 

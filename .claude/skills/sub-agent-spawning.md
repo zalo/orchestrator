@@ -35,9 +35,9 @@ Sub-agents are Claude Code instances spawned in tmux sessions to work on tasks i
 
    **Bug Fixed 2026-01-11**: Previously only the Mayor received an initial message. Sub-agents would start but sit idle at the Claude prompt. Fixed by sending initial message to ALL agents.
 
-   **Bug Fixed 2026-01-12**: Initial message and Enter key were sent together in a single tmux send-keys command, which sometimes failed due to shell quoting issues. Fixed by:
+   **Bug Fixed 2026-01-12**: Initial message and C-m key were sent together in a single tmux send-keys command, which sometimes failed due to shell quoting issues. Fixed by:
    1. Escaping single quotes in the message
-   2. Sending message and C-m (Enter) as separate tmux send-keys commands
+   2. Sending message and C-m (C-m) as separate tmux send-keys commands
    3. Increased timeout from 3s to 5s for more reliable Claude initialization
 
 ## Sub-Agent Prompt Template
@@ -59,7 +59,7 @@ tmux list-sessions | grep agent-
 tmux capture-pane -t agent-{name} -p | tail -50
 
 # Manually send message to stuck agent
-tmux send-keys -t agent-{name} 'Your message here' Enter
+tmux send-keys -t agent-{name} 'Your message here' C-m
 ```
 
 ## Common Issues
@@ -68,7 +68,7 @@ tmux send-keys -t agent-{name} 'Your message here' Enter
 **Cause**: Initial message not sent or not submitted
 **Fix**:
 1. Check server logs for "Failed to send initial message" errors
-2. Manually send: `tmux send-keys -t agent-{name} 'Begin working...' Enter`
+2. Manually send: `tmux send-keys -t agent-{name} 'Begin working...' C-m`
 
 ### Agent Not Reporting Progress
 **Cause**: Agent not calling progress API

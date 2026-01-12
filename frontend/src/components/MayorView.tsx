@@ -91,6 +91,17 @@ export default function MayorView({
     <div className="h-full flex flex-col">
       {/* Unified header bar */}
       <header className="bg-charcoal-light border-b border-charcoal-lighter px-2 py-1.5 flex items-center gap-2 shrink-0">
+        {/* Back button */}
+        <button
+          onClick={onBack}
+          className="control-btn"
+          title="Back to workspaces"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
+
         {/* Sidebar toggle */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -112,17 +123,6 @@ export default function MayorView({
               {unreadMessages.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-rose" />}
             </div>
           )}
-        </button>
-
-        {/* Back button */}
-        <button
-          onClick={onBack}
-          className="control-btn"
-          title="Back to workspaces"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
         </button>
 
         {/* Workspace name */}
