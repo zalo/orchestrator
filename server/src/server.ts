@@ -1967,17 +1967,8 @@ app.post('/api/agents/spawn', async (req: Request, res: Response) => {
     return;
   }
 
-  // Check for file ownership conflicts
-  if (ownedPaths.length > 0) {
-    const conflicts = checkOwnershipConflicts(workspaceId, ownedPaths);
-    if (conflicts.length > 0) {
-      res.status(409).json({
-        error: 'File ownership conflict detected',
-        conflicts: conflicts.map(c => `${c.path} is owned by ${c.owner}`)
-      });
-      return;
-    }
-  }
+  // Note: ownedPaths is tracked for documentation but not enforced
+  // Git worktrees provide isolation between agents
 
   const now = new Date().toISOString();
   const agent: Agent = {

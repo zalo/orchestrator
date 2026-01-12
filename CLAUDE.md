@@ -151,15 +151,12 @@ Sub-agents automatically get their own git worktree when spawned (if the workspa
 
 ## File Ownership
 
-Agents can declare which files they own via `ownedPaths` when spawned. The system:
-- Prevents spawning agents with conflicting file ownership
-- Returns 409 Conflict if ownership overlap is detected
-- Tracks ownership across active agents only (offline agents don't count)
+Agents can declare which files they own via `ownedPaths` when spawned. This is tracked for documentation/visibility but **not enforced** - git worktrees provide the actual isolation between agents.
 
-Ownership patterns support globs:
-- `src/auth/**` - all files under src/auth
-- `src/components/Button.tsx` - specific file
-- `*.test.ts` - pattern matching
+Use ownership to:
+- Document what each agent is working on
+- Query which agent owns a file via `/api/ownership`
+- Help coordinate work between agents
 
 ## Merge Queue
 
